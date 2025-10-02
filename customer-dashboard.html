@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Customer Dashboard</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-50 text-gray-900">
+
+  <header class="bg-pink-100 p-4 shadow flex justify-between items-center">
+    <h1 class="text-xl font-bold">👤 My Dashboard</h1>
+    <button onclick="logoutUser()" class="bg-red-500 text-white px-4 py-1 rounded hover:bg-red-600">Logout</button>
+  </header>
+
+  <main class="max-w-4xl mx-auto p-6">
+    <h2 class="text-lg font-semibold mb-4">Welcome, <span id="userName">Customer</span> 👋</h2>
+
+    <div class="bg-white p-6 rounded shadow">
+      <h3 class="text-md font-semibold mb-4">📦 Your Orders</h3>
+      <table class="w-full border text-sm">
+        <thead class="bg-pink-100">
+          <tr>
+            <th class="p-2">Date</th>
+            <th class="p-2">Total</th>
+            <th class="p-2">Items</th>
+            <th class="p-2">Action</th>
+          </tr>
+        </thead>
+        <tbody id="orderTableBody"></tbody>
+      </table>
+    </div>
+  </main>
+
+  <!-- Modal -->
+  <div id="orderModal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-50">
+    <div class="bg-white w-11/12 max-w-lg p-6 rounded shadow-lg">
+      <h2 class="text-xl font-bold mb-4">Order Details</h2>
+      <div id="modalContent" class="space-y-2 max-h-[60vh] overflow-y-auto"></div>
+      <button onclick="closeModal()" class="mt-4 bg-pink-500 text-white px-4 py-2 rounded hover:bg-pink-600">Close</button>
+    </div>
+  </div>
+
+  <script>
+    // 🔐 Check if user is logged in
+    const loggedInUser = JSON.parse(localStorage.getItem("loggedInUser"));
+    if (!loggedInUser || !loggedInUser.email) {
+      window.location.href = "login.html"; // or your actual login page
+    }
+
+    document.getElementById("userName").textContent = loggedInUser.name || "Customer";
+
+    function logoutUser() {
+      localStorage.removeItem("loggedInUser");
+      window.location.href = "login.html";
+    }
+
+    // 🧾 Render orders for current user
+    function renderCustomerOrders() {
+      const history = JSON.parse(localStorage.getItem("orderHistory")) || [];
+      const userOrders = history.filter(order => order.email === loggedInUser.email);
+
+      const tbody = document.getElementById("orderTableBody");
+      if (userOrders.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="4" class="text-center p-4 text-gray-500">You have no orders yet.</td></tr>`;
+        return;
+      }
+
+      userOrders.reverse().forEach((order, index) => {
+        const date = new Date(order.timestamp).toLocaleString();
+        const itemCount = order.items.reduce((sum, item) => sum + item.quantity, 0);
+
+        tbody.innerHTML += `
+          <tr class="border-b">
+            <td class="p-2">${date}</td>
+            <td class="p-2">₦${order.total.toLocaleString()}</td>
+            <td class="p-2">${itemCount}</td>
+            <td class="p-2">
+              <button onclick="viewOrderDetails(${index})" class="text-blue-600 hover:underline">View</button>
+            </td>
+          </tr>
+        `;
+      });
+
+      // Store filtered userOrders to access in viewOrderDetails
+      window._userOrders = userOrders;
+    }
+
+    function viewOrderDetails(index) {
+      const order = window._userOrders[index];
+      const content = document.getElementById("modalContent");
+      content.innerHTML = `
+        <p><strong>Name:</strong> ${order.name}</p>
+        <p><strong>Email:</strong> ${order.email}</p>
+        <p><strong>Phone:</strong> ${order.phone}</p>
+        <p><strong>Total:</strong> ₦${order.total.toLocaleString()}</p>
+        <p><strong>Date:</strong> ${new Date(order.timestamp).toLocaleString()}</p>
+        <hr/>
+        <p class="font-semibold">Items:</p>
+        <ul class="list-disc pl-6">
+          ${order.items.map(item => `
+            <li>${item.name} × ${item.quantity} — ₦${(item.price * item.quantity).toLocaleString()}</li>
+          `).join("")}
+        </ul>
+      `;
+
+      document.getElementById("orderModal").classList.remove("hidden");
+      document.getElementById("orderModal").classList.add("flex");
+    }
+
+    function closeModal() {
+      const modal = document.getElementById("orderModal");
+      modal.classList.add("hidden");
+      modal.classList.remove("flex");
+    }
+
+    document.addEventListener("DOMContentLoaded", renderCustomerOrders);
+  </script>
+</body>
+</html>
