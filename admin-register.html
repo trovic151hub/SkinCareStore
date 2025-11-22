@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Admin Registration</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 flex items-center justify-center h-screen">
+  <div class="bg-white p-6 rounded shadow-md w-full max-w-md">
+    <h2 class="text-2xl font-bold mb-4 text-center text-pink-600">Admin Registration</h2>
+    <form id="adminLoginForm" class="space-y-4">
+      <input type="text" id="adminName" placeholder="Full Name" class="w-full border p-2 rounded" required />
+      <input type="email" id="adminEmail" placeholder="Email" class="w-full border p-2 rounded" required />
+      <input type="password" id="adminPassword" placeholder="Password" class="w-full border p-2 rounded" required />
+      <button type="submit" class="w-full bg-pink-600 text-white py-2 rounded hover:bg-pink-700">Register</button>
+      <p id="registerError" class="text-red-500 text-sm hidden"></p>
+      <p class="mt-4 text-center text-sm">
+        Already an Admin? <a href="admin-login.html" class="text-pink-600">Login</a>
+      </p>
+    </form>
+  </div>
+
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore-compat.js"></script>
+
+<script>
+  // --- Admin Firebase config ---
+  const adminFirebaseConfig = {
+    apiKey: "AIzaSyAL-VE8puSjlcVwXPj_H-LBz1JXS2Iz4vc",
+    authDomain: "e-commerce-admin-auth.firebaseapp.com",
+    projectId: "e-commerce-admin-auth",
+    storageBucket: "e-commerce-admin-auth.firebasestorage.app",
+    messagingSenderId: "816965536848",
+    appId: "1:816965536848:web:5ea18f3227f1ae63911555"
+  };
+
+  const adminApp = firebase.apps.find(app => app.name === "AdminApp") 
+      || firebase.initializeApp(adminFirebaseConfig, "AdminApp");
+  const adminAuth = adminApp.auth();
+  const db = adminApp.firestore();
+
+  const form = document.getElementById("adminLoginForm");
+  const loginError = document.getElementById("loginError");
+
+  document.addEventListener("DOMContentLoaded", () => {
+  if (!form) {
+    console.error("Form not found!");
+    return;
+  }
+
+  form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    registerError.classList.add("hidden"); // <-- fixed
+
+    const name = document.getElementById("adminName").value.trim();
+    const email = document.getElementById("adminEmail").value.trim();
+    const password = document.getElementById("adminPassword").value;
+
+    try {
+      const userCredential = await adminAuth.createUserWithEmailAndPassword(email, password);
+      const user = userCredential.user;
+
+      await db.collection("admins").doc(user.uid).set({
+        name,
+        email,
+        role: "admin",
+        createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+        lastLogin: firebase.firestore.FieldValue.serverTimestamp()
+      });
+
+      alert("Admin registered successfully!");
+      window.location.href = "admin-login.html";
+
+    } catch (err) {
+      console.error(err);
+      registerError.textContent = err.message; // <-- fixed
+      registerError.classList.remove("hidden");
+    }
+  });
+});
+
+  // Optional: Auto-redirect if already logged in (but only after verification)
+  adminAuth.onAuthStateChanged(async (user) => {
+    if (user && window.location.pathname.includes('admin-login.html')) {
+      const storedUID = localStorage.getItem("adminUID");
+      if (storedUID === user.uid) {
+        try {
+          const adminDoc = await db.collection("admins").doc(user.uid).get();
+          if (adminDoc.exists) {
+            window.location.href = "Admins.html";
+          } else {
+            localStorage.removeItem("adminUID");
+            await adminAuth.signOut();
+          }
+        } catch (err) {
+          console.error("Auth state check failed:", err);
+        }
+      }
+    }
+  });
+</script>
+  </body>
+  </html>
