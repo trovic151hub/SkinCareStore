@@ -6,7 +6,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Admin Panel</title>
   <script src="https://cdn.tailwindcss.com"></script>
-  <script src="auth-protect.js"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css">
 </head>
 
 <body class="bg-gray-100 text-gray-900">
@@ -18,6 +18,8 @@
   <nav class="bg-gray-200 p-4 flex gap-4 text-sm">
     <a href="index.html" class="text-pink-600 hover:underline">🏠 Homepage</a>
     <a href="products.html" class="text-pink-600 hover:underline">🛍 View Store</a>
+    <a href="Order-History.html" class="text-pink-600 hover:underline"><i class="fas fa-clipboard text-[#4A4A4A] mr-1 text-[17px]"></i>Order History</a>
+    <a href="Admin-Analytics-Summary.html" class="text-pink-600 hover:underline"><i class="fas fa-chart-pie text-[#16A] mr-1 text-[17px]"></i>Admin Analytics Summary</a>
     <button onclick="logoutAdmin()"
       class="ml-auto text-white bg-red-600 px-3 py-1 rounded hover:bg-red-700">Logout</button>
   </nav>
@@ -78,336 +80,189 @@
     </div>
   </div>
 
-  <!-- Admin Analytics Summary -->
-  <div class="bg-white shadow p-6 rounded mt-10">
-    <h2 class="text-lg font-semibold mb-4">📊 Analytics Summary</h2>
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-center">
-      <div>
-        <p class="text-gray-500 text-sm">Total Sales</p>
-        <p id="totalSales" class="text-xl font-bold text-pink-600">₦0</p>
-      </div>
-      <div>
-        <p class="text-gray-500 text-sm">Total Orders</p>
-        <p id="totalOrders" class="text-xl font-bold text-pink-600">0</p>
-      </div>
-      <div>
-        <p class="text-gray-500 text-sm">Top Product</p>
-        <p id="topProduct" class="text-xl font-bold text-pink-600">–</p>
-      </div>
-    </div>
-  </div>
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore-compat.js"></script>
 
+<script>
+  const adminFirebaseConfig = {
+    apiKey: "AIzaSyAL-VE8puSjlcVwXPj_H-LBz1JXS2Iz4vc",
+    authDomain: "e-commerce-admin-auth.firebaseapp.com",
+    projectId: "e-commerce-admin-auth",
+    storageBucket: "e-commerce-admin-auth.firebasestorage.app",
+    messagingSenderId: "816965536848",
+    appId: "1:816965536848:web:5ea18f3227f1ae63911555"
+  };
 
-  <section>
-    <!-- Order History -->
-    <div class="bg-white shadow p-6 rounded mt-10">
-      <h2 class="text-lg font-semibold mb-4">Order History</h2>
-      <div class="overflow-auto">
-        <table class="w-full text-left border">
-          <thead class="bg-pink-100">
-            <tr>
-              <th class="p-2">Name</th>
-              <th class="p-2">Email</th>
-              <th class="p-2">Phone</th>
-              <th class="p-2">Total</th>
-              <th class="p-2">Date</th>
-            </tr>
-          </thead>
-          <tbody id="orderHistoryTable">
-
-          </tbody>
-        </table>
-      </div>
-    </div>
-  </section>
-
-  <script>
-    let allProducts = [];
-    let currentPage = 1;
-    const productsPerPage = 5;
-    let editIndex = null;
-    if (localStorage.getItem("isAdmin") !== "true") {
-      window.location.href = "admin-login.html";
+  // --- Initialize separate admin app ---
+  let adminApp;
+  if (!firebase.apps.length) {
+    adminApp = firebase.initializeApp(adminFirebaseConfig);
+  } else {
+    try {
+      adminApp = firebase.app("AdminApp");
+    } catch {
+      adminApp = firebase.initializeApp(adminFirebaseConfig, "AdminApp");
     }
+  }
 
-    function getData() {
-      return JSON.parse(localStorage.getItem("products")) || [];
-    }
+  const adminAuth = adminApp.auth();
+  const db = adminApp.firestore();
 
-    function saveData(data) {
-      localStorage.setItem("products", JSON.stringify(data));
-    }
+  let editId = null;
+  let lastVisibleProduct = null;
+  const PRODUCTS_PER_PAGE = 5;
 
-    function renderTable(page = 1) {
-      const tbody = document.getElementById("productTableBody");
-      if (page === 1) {
-        tbody.innerHTML = ""; // Only clear on first page
+  // ========== PAGE PROTECTION ==========
+  function goToLogin() {
+    localStorage.removeItem("isAdmin");
+    window.location.href = "admin-login.html";
+  }
+
+  adminAuth.onAuthStateChanged(async (user) => {
+    if (!user) return goToLogin();
+
+    try {
+      const adminDoc = await db.collection("admins").doc(user.uid).get();
+      if (!adminDoc.exists) {
+        alert("Access denied. You are not an admin.");
+        await adminAuth.signOut();
+        return goToLogin();
       }
+      localStorage.setItem("isAdmin", "true");
+    } catch (err) {
+      console.error("Permission error:", err);
+      goToLogin();
+    }
+  });
 
+  // ========== LOAD PRODUCTS ==========
+  async function loadProducts(startAfterDoc = null) {
+    let query = db.collection("products").orderBy("name").limit(PRODUCTS_PER_PAGE);
+    if (startAfterDoc) query = query.startAfter(startAfterDoc);
 
-      const start = (page - 1) * productsPerPage;
-      const end = start + productsPerPage;
-      const pageProducts = allProducts.slice(start, end);
+    const snap = await query.get();
+    const products = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    lastVisibleProduct = snap.docs[snap.docs.length - 1]; // for next page
+    return products;
+  }
 
-      pageProducts.forEach((product, index) => {
-        tbody.innerHTML += `
-      <tr class="border-b">
-        <td class="p-2">${product.name}</td>
-        <td class="p-2">₦${product.price.toLocaleString()}</td>
-        <td class="p-2">${product.category}</td>
-        <td class="p-2"><img src="${product.image}" alt="${product.name}" class="w-12 h-12 object-cover rounded" /></td>
-        <td class="p-2 text-sm max-w-[200px] truncate">${product.description}</td>
-        <td class="p-2 space-x-2">
-          <button onclick="editProduct(${start + index})" class="text-blue-600 hover:underline text-sm">Edit</button>
-          <button onclick="deleteProduct(${start + index})" class="text-red-600 hover:underline text-sm">Delete</button>
-        </td>
-      </tr>
-    `;
-      });
+  async function renderTable(append = false) {
+    const tbody = document.getElementById("productTableBody");
 
-      const loadMoreBtn = document.getElementById("loadMoreProductsBtn");
-      if (end >= allProducts.length) {
-        loadMoreBtn.style.display = "none";
-      } else {
-        loadMoreBtn.style.display = "block";
-      }
+    // --- 1. Show skeletons while loading ---
+    if (!append) tbody.innerHTML = "";
+    for (let i = 0; i < PRODUCTS_PER_PAGE; i++) {
+      tbody.innerHTML += `
+        <tr class="border-b animate-pulse">
+          <td class="p-2 bg-gray-200 rounded h-6"></td>
+          <td class="p-2 bg-gray-200 rounded h-6"></td>
+          <td class="p-2 bg-gray-200 rounded h-6"></td>
+          <td class="p-2"><div class="w-12 h-12 bg-gray-200 rounded"></div></td>
+          <td class="p-2 bg-gray-200 rounded h-6"></td>
+          <td class="p-2 bg-gray-200 rounded h-6"></td>
+        </tr>
+      `;
     }
 
-    function editProduct(index) {
-      const product = getData()[index];
-      document.getElementById("name").value = product.name;
-      document.getElementById("price").value = product.price;
-      document.getElementById("category").value = product.category;
-      document.getElementById("image").value = product.image;
-      document.getElementById("description").value = product.description;
+    // --- 2. Fetch actual products ---
+    const products = await loadProducts(append ? lastVisibleProduct : null);
 
-      document.getElementById("formTitle").textContent = "Edit Product";
-      editIndex = index;
-    }
+    // --- 3. Remove skeletons ---
+    if (!append) tbody.innerHTML = "";
 
-    function deleteProduct(index) {
-      let data = getData();
-      if (confirm(`Delete ${data[index].name}?`)) {
-        data.splice(index, 1);
-        saveData(data);
-
-        allProducts = getData();
-        currentPage = 1;
-
-        renderTable();
-
-        resetForm();
-      }
-    }
-
-    document.addEventListener("DOMContentLoaded", () => {
-      allProducts = getData();
-      currentPage = 1;
-      renderTable(currentPage);
-      renderOrders();
+    // --- 4. Render actual products ---
+    products.forEach(p => {
+      tbody.innerHTML += `
+        <tr class="border-b">
+          <td class="p-2">${p.name}</td>
+          <td class="p-2">₦${p.price.toLocaleString()}</td>
+          <td class="p-2">${p.category}</td>
+          <td class="p-2"><img src="${p.image}" alt="" class="w-12 h-12 object-cover rounded"/></td>
+          <td class="p-2 text-sm max-w-xs truncate">${p.description}</td>
+          <td class="p-2">
+            <button onclick="editProduct('${p.id}')" class="text-blue-600 text-sm">Edit</button>
+            <button onclick="deleteProduct('${p.id}')" class="text-red-600 text-sm ml-2">Delete</button>
+          </td>
+        </tr>
+      `;
     });
 
-    document.getElementById("loadMoreProductsBtn").addEventListener("click", () => {
-      currentPage++;
-      renderTable(currentPage);
-    });
-
-    window.addEventListener("storage", () => {
-
-      loadAndRenderProducts?.();
-      renderHomepageProducts?.();
-    });
-
-    function renderOrders() {
-      const orders = JSON.parse(localStorage.getItem("orderHistory")) || [];
-      const tbody = document.getElementById("orderHistoryTable");
-
-      if (!tbody) return;
-
-      tbody.innerHTML = "";
-
-      orders.forEach((order, index) => {
-        const date = new Date(order.timestamp).toLocaleString();
-        const fulfilledText = order.fulfilled ? "✅ Fulfilled" : "⏳ Pending";
-
-        tbody.innerHTML += `
-    <tr class="border-b">
-      <td class="p-2">${order.name}</td>
-      <td class="p-2">${order.email}</td>
-      <td class="p-2">${order.phone}</td>
-      <td class="p-2">₦${order.total.toLocaleString()}</td>
-      <td class="p-2">${date}</td>
-      <td class="p-2 space-x-2">
-        <button onclick="viewOrderDetails(${index})" class="text-blue-600 hover:underline text-sm">Details</button>
-        <button onclick="toggleFulfilled(${index})" class="text-green-600 hover:underline text-sm">${fulfilledText}</button>
-        <button onclick="deleteOrder(${index})" class="text-red-600 hover:underline text-sm">Delete</button>
-      </td>
-    </tr>
-  `;
-      });
+    // --- 5. Show message if no products ---
+    if (!append && products.length === 0) {
+      tbody.innerHTML = `
+        <tr>
+          <td class="p-4 text-center text-gray-500" colspan="6">No products found.</td>
+        </tr>
+      `;
     }
 
-    document.addEventListener("DOMContentLoaded", () => {
-      renderTable();
-      renderOrders();
-    });
+    // --- 6. Disable Load More if no more products ---
+    document.getElementById("loadMoreProductsBtn").disabled = products.length < PRODUCTS_PER_PAGE;
+  }
 
-    function viewOrderDetails(index) {
-      const history = JSON.parse(localStorage.getItem("orderHistory")) || [];
-      const order = history[index];
-      const modal = document.getElementById("orderModal");
-      const content = document.getElementById("modalContent");
+  // ========== SAVE PRODUCT ==========
+  document.getElementById("productForm").addEventListener("submit", async e => {
+    e.preventDefault();
+    const data = {
+      name: document.getElementById("name").value.trim(),
+      price: parseFloat(document.getElementById("price").value),
+      category: document.getElementById("category").value.trim(),
+      image: document.getElementById("image").value.trim(),
+      description: document.getElementById("description").value.trim()
+    };
 
-      content.innerHTML = `
-    <p><strong>Name:</strong> ${order.name}</p>
-    <p><strong>Email:</strong> ${order.email}</p>
-    <p><strong>Phone:</strong> ${order.phone}</p>
-    <p><strong>Total:</strong> ₦${order.total.toLocaleString()}</p>
-    <p><strong>Date:</strong> ${new Date(order.timestamp).toLocaleString()}</p>
-    <p><strong>Status:</strong> ${order.fulfilled ? "✅ Fulfilled" : "⏳ Pending"}</p>
-    <hr/>
-    <p class="font-semibold">Items:</p>
-    <ul class="list-disc pl-6">
-      ${order.items.map(item => `
-        <li>${item.name} × ${item.quantity} — ₦${(item.price * item.quantity).toLocaleString()}</li>
-      `).join("")}
-    </ul>
-  `;
-
-      modal.classList.remove("hidden");
-      modal.classList.add("flex");
-    }
-
-    function toggleFulfilled(index) {
-      const history = JSON.parse(localStorage.getItem("orderHistory")) || [];
-      history[index].fulfilled = !history[index].fulfilled;
-      localStorage.setItem("orderHistory", JSON.stringify(history));
-      renderOrders();
-    }
-
-    function deleteOrder(index) {
-      const history = JSON.parse(localStorage.getItem("orderHistory")) || [];
-      if (confirm(`Delete order from ${history[index].name}?`)) {
-        history.splice(index, 1);
-        localStorage.setItem("orderHistory", JSON.stringify(history));
-        renderOrders();
-      }
-    }
-
-    function logoutAdmin() {
-      localStorage.removeItem("isAdmin");
-      window.location.href = "admin-login.html";
-    }
-
-    function renderAnalytics() {
-      const orders = JSON.parse(localStorage.getItem("orderHistory")) || [];
-
-      // Main summary
-      const totalSales = orders.reduce((sum, order) => sum + order.total, 0);
-      const totalOrders = orders.length;
-
-      const productCount = {};
-      orders.forEach(order => {
-        order.items.forEach(item => {
-          productCount[item.name] = (productCount[item.name] || 0) + item.quantity;
-        });
-      });
-
-      let topProduct = "-";
-      let maxCount = 0;
-      for (const name in productCount) {
-        if (productCount[name] > maxCount) {
-          maxCount = productCount[name];
-          topProduct = name;
-        }
-      }
-
-      document.getElementById("totalSales").textContent = `₦${totalSales.toLocaleString()}`;
-      document.getElementById("totalOrders").textContent = totalOrders;
-      document.getElementById("topProduct").textContent = topProduct;
-
-      // 🆕 Analytics by date
-      const dailyData = {};
-
-      orders.forEach(order => {
-        const date = new Date(order.timestamp).toLocaleDateString();
-        if (!dailyData[date]) {
-          dailyData[date] = { total: 0, count: 0 };
-        }
-        dailyData[date].total += order.total;
-        dailyData[date].count += 1;
-      });
-
-      const summarySection = document.querySelector("section");
-      const analyticsTable = document.createElement("div");
-      analyticsTable.className = "bg-white shadow p-6 rounded mt-6";
-
-      analyticsTable.innerHTML = `
-    <h2 class="text-lg font-semibold mb-4">📅 Sales by Date</h2>
-    <div class="overflow-auto">
-      <table class="w-full text-left border">
-        <thead class="bg-pink-100">
-          <tr>
-            <th class="p-2">Date</th>
-            <th class="p-2">Orders</th>
-            <th class="p-2">Total Sales</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${Object.entries(dailyData).map(([date, data]) => `
-            <tr class="border-b">
-              <td class="p-2">${date}</td>
-              <td class="p-2">${data.count}</td>
-              <td class="p-2">₦${data.total.toLocaleString()}</td>
-            </tr>
-          `).join("")}
-        </tbody>
-      </table>
-    </div>
-  `;
-
-      summarySection.appendChild(analyticsTable);
-    }
-
-    function closeModal() {
-      const modal = document.getElementById("orderModal");
-      modal.classList.add("hidden");
-      modal.classList.remove("flex");
-    }
-
-    document.getElementById("productForm").addEventListener("submit", function (e) {
-      e.preventDefault();
-
-      const name = document.getElementById("name").value.trim();
-      const price = parseFloat(document.getElementById("price").value);
-      const category = document.getElementById("category").value.trim();
-      const image = document.getElementById("image").value.trim();
-      const description = document.getElementById("description").value.trim();
-
-      let products = getData();
-
-      const newProduct = { name, price, category, image, description };
-
-      if (editIndex !== null) {
-      
-        products[editIndex] = newProduct;
-        editIndex = null;
+    try {
+      if (editId) {
+        await db.collection("products").doc(editId).update(data);
+        editId = null;
         document.getElementById("formTitle").textContent = "Add New Product";
       } else {
-      
-        products.push(newProduct);
+        await db.collection("products").add(data);
       }
-
-      saveData(products);
       document.getElementById("productForm").reset();
-      document.getElementById("productTableBody").innerHTML = "";
-      allProducts = getData();
-      currentPage = 1;
-      renderTable(currentPage);
+      renderTable();
+    } catch (err) {
+      alert("Failed to save: " + err.message);
+    }
+  });
+
+  // ========== EDIT ==========
+  window.editProduct = async id => {
+    const doc = await db.collection("products").doc(id).get();
+    const p = doc.data();
+    document.getElementById("name").value = p.name;
+    document.getElementById("price").value = p.price;
+    document.getElementById("category").value = p.category;
+    document.getElementById("image").value = p.image;
+    document.getElementById("description").value = p.description;
+    document.getElementById("formTitle").textContent = "Edit Product";
+    editId = id;
+  };
+
+  // ========== DELETE ==========
+  window.deleteProduct = async id => {
+    if (confirm("Delete this product?")) {
+      await db.collection("products").doc(id).delete();
+      renderTable();
+    }
+  };
+
+  // ========== LOGOUT ==========
+  window.logoutAdmin = () => {
+    adminAuth.signOut().then(() => {
+      localStorage.removeItem("isAdmin");
+      window.location.href = "admin-login.html";
     });
+  };
 
-    renderAnalytics();
-  </script>
+  // ========== LOAD MORE BUTTON ==========
+  document.getElementById("loadMoreProductsBtn").addEventListener("click", () => {
+    renderTable(true); // append = true
+  });
+
+  // Initial load
+  renderTable();
+</script>
 </body>
-
 </html>
