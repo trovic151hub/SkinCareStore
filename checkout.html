@@ -5,12 +5,106 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Checkout</title>
   <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css">
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
+  <script src="https://js.paystack.co/v1/inline.js"></script>
+  <script src="https://checkout.flutterwave.com/v3.js"></script>
+  <style>
+  *{
+        font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+    }
+    @import url('https://fonts.googleapis.com/css2?family=Lora:wght@700&family=Montserrat:wght@500&display=swap');
+    /* ----------------------------------- */
+/* 📱 MOBILE FIRST: max-width 640px    */
+/* ----------------------------------- */
+@media (max-width: 640px) {
+  *{
+        font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+    }
+    @import url('https://fonts.googleapis.com/css2?family=Lora:wght@700&family=Montserrat:wght@500&display=swap');
+
+  /* Main grid stacks vertically */
+  main {
+    grid-template-columns: 1fr !important;
+    gap: 16px !important;
+    padding: 1rem !important;
+  }
+
+  header h1 {
+    font-size: 1.2rem !important;
+  }
+
+  header a {
+    font-size: 1rem !important;
+  }
+
+  /* Billing form & order summary full width */
+  .bg-white {
+    width: 100% !important;
+    padding: 1rem !important;
+  }
+
+  /* Inputs full width and slightly smaller text */
+  input {
+    width: 100% !important;
+    font-size: 0.95rem !important;
+  }
+
+  /* Payment buttons stacked vertically */
+  #checkoutForm .flex {
+    /* flex-direction: column !important; */
+    gap: 12px !important;
+  }
+
+  /* Order summary items spacing */
+  #summaryList > div {
+    flex-direction: column !important;
+    gap: 8px !important;
+  }
+
+  /* Total text smaller */
+  #checkoutTotal {
+    font-size: 1.1rem !important;
+  }
+}
+
+/* ----------------------------------- */
+/* 📲 VERY SMALL SCREEN: max-width 380px */
+/* ----------------------------------- */
+@media (max-width: 380px) {
+  header h1 {
+    font-size: 1rem !important;
+  }
+
+  header a {
+    font-size: 0.9rem !important;
+  }
+
+  input {
+    font-size: 0.9rem !important;
+    padding: 0.5rem !important;
+  }
+
+  #checkoutForm button {
+    font-size: 0.9rem !important;
+    padding: 0.6rem !important;
+  }
+
+  #checkoutTotal {
+    font-size: 1rem !important;
+  }
+}
+  </style>
 </head>
 <body class="bg-gray-50 text-gray-900">
 
   <header class="bg-pink-100 p-4 shadow-md flex justify-between items-center">
+    <button onclick="history.back()">
     <h1 class="text-xl font-bold">🧾 Checkout</h1>
-    <a href="cart.html" class="text-pink-600 ">← Back to Cart</a>
+    </button>
+    <a href="cart.html" class="text-pink-600 font-bold">🛒 Back to Cart</a>
   </header>
 
   <main class="p-6 max-w-4xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-8">
@@ -22,13 +116,13 @@
         <input type="text" id="name" placeholder="Full Name" class="w-full border p-2 rounded" required />
         <input type="tel" id="phone" placeholder="Phone Number" class="w-full border p-2 rounded" required />
         <input type="email" id="email" placeholder="Email Address" class="w-full border p-2 rounded" required />
+        <input type="text" id="address" placeholder="Home Address" class="w-full border p-2 rounded" required />
 
-        <!-- Payment method placeholder -->
         <h2 class="text-lg font-semibold mb-2">Choose Payment Method</h2>
-  <div class="flex gap-4">
-    <button id="payWithPaystack" type="button" class="bg-pink-600 text-white px-4 py-2 rounded hover:bg-pink-700">Pay with Paystack</button>
-    <button id="payWithFlutterwave" type="button" class="bg-yellow-500 text-white px-4 py-2 rounded hover:bg-yellow-600">Pay with Flutterwave</button>
-  </div>
+        <div class="flex gap-4">
+          <button id="payWithPaystack" type="button" class="bg-pink-600 text-white px-4 py-2 rounded hover:bg-pink-700">Paystack</button>
+          <button id="payWithFlutterwave" type="button" class="bg-yellow-500 text-white px-4 py-2 rounded hover:bg-yellow-600">Flutterwave</button>
+        </div>
       </form>
     </div>
 
@@ -43,168 +137,395 @@
     </div>
 
   </main>
+
   <script>
-    document.addEventListener("DOMContentLoaded", () => {
-      const user = JSON.parse(localStorage.getItem("currentUser"));
-      if (!user) {
-        alert("Please log in to access the checkout page.");
-        window.location.href = "login.html";
-      }
+  // ===== Firebase config & init =====
+  const firebaseConfig = {
+    apiKey: "AIzaSyAw3H8R1hlnURjF3Nw66uLIHLRm60ZOfB0",
+    authDomain: "e-commerce-project-9d5fc.firebaseapp.com",
+    projectId: "e-commerce-project-9d5fc",
+    storageBucket: "e-commerce-project-9d5fc.appspot.com",
+    messagingSenderId: "170026324556",
+    appId: "1:170026324556:web:cdae7d84eab13eecd21ae9"
+  };
 
-      renderSummary();
+  firebase.initializeApp(firebaseConfig);
+  const auth = firebase.auth();
+  const db = firebase.firestore();
 
-      if (user) {
-        document.getElementById("name").value = user.name || "";
-        document.getElementById("email").value = user.email || "";
-      }
+  let currentUser = null;
+  let cartItems = [];
+
+  // ===== Auth check & prefill =====
+  auth.onAuthStateChanged(async user => {
+    if (!user) {
+      alert("Please log in to access checkout.");
+      window.location.href = "login.html";
+      return;
+    }
+    currentUser = user;
+
+    // Prefill name/email/address
+    const userDoc = await db.collection("users").doc(user.uid).get();
+    const userData = userDoc.exists ? userDoc.data() : {};
+    document.getElementById("name").value = userData.name || "";
+    document.getElementById("email").value = userData.email || user.email || "";
+    document.getElementById("address").value = userData.address || "";
+
+    loadCart();
+  });
+
+  // ===== Load Cart =====
+  async function loadCart() {
+    if (!currentUser) return;
+    const snapshot = await db.collection("carts").doc(currentUser.uid).collection("items").get();
+    cartItems = snapshot.docs.map(doc => ({ docId: doc.id, ...doc.data() }));
+    renderSummary();
+  }
+
+  function renderSummary() {
+    const summaryList = document.getElementById("summaryList");
+    const totalSpan = document.getElementById("checkoutTotal");
+
+    summaryList.innerHTML = "";
+    let total = 0;
+
+    if (!cartItems.length) {
+      summaryList.innerHTML = "<p class='text-gray-500'>Your cart is empty.</p>";
+      totalSpan.textContent = "0";
+      return;
+    }
+
+    cartItems.forEach(item => {
+      const itemTotal = item.price * item.quantity;
+      total += itemTotal;
+      summaryList.innerHTML += `
+        <div class="flex justify-between">
+          <span>${item.name} x ${item.quantity}</span>
+          <span>₦${itemTotal.toLocaleString()}</span>
+        </div>
+      `;
     });
 
-    function getCart() {
-      return JSON.parse(localStorage.getItem("cart")) || [];
-    }
-
-    function renderSummary() {
-      const cart = getCart();
-      const summaryList = document.getElementById("summaryList");
-      const totalSpan = document.getElementById("checkoutTotal");
-
-      summaryList.innerHTML = "";
-      let total = 0;
-
-      if (cart.length === 0) {
-        summaryList.innerHTML = "<p class='text-gray-500'>Your cart is empty.</p>";
-        totalSpan.textContent = "0";
-        return;
-      }
-
-      cart.forEach(item => {
-        const itemTotal = item.price * item.quantity;
-        total += itemTotal;
-
-        summaryList.innerHTML += `
-          <div class="flex justify-between">
-            <span>${item.name} x ${item.quantity}</span>
-            <span>₦${itemTotal.toLocaleString()}</span>
-          </div>
-        `;
-      });
-
-      totalSpan.textContent = total.toLocaleString();
-    }
-
-    // PAYSTACK
-document.getElementById("payWithPaystack").addEventListener("click", function () {
-  const name = document.getElementById("name").value.trim();
-  const phone = document.getElementById("phone").value.trim();
-  const email = document.getElementById("email").value.trim();
-  const cart = getCart();
-
-  if (!name || !phone || !email) {
-    alert("Please fill out all billing fields.");
-    return;
+    totalSpan.textContent = total.toLocaleString();
   }
 
-  const total = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
-
-  const handler = PaystackPop.setup({
-    // key: 'pk_live_f9ff1f3fa32e516015254b81dcee81c3925f5225', // Replace with your public key
-    key: 'pk_test_0ed65a8011643dd303600706cb990c9ba067f199',
-    email: email,
-    amount: total * 100,
-    currency: 'NGN',
-    ref: '' + Math.floor(Math.random() * 1000000000 + 1),
-    metadata: {
-      custom_fields: [
-        { display_name: "Name", variable_name: "name", value: name },
-        { display_name: "Phone", variable_name: "phone", value: phone },
-      ]
-    },
-    callback: function (response) {
-      const order = {
-        name,
-        phone,
-        email,
-        items: cart,
-        total,
-        timestamp: new Date().toISOString(),
-        paymentRef: response.reference,
-        paymentMethod: "Paystack",
-        fulfilled: false
-      };
-      saveOrder(order);
-    },
-    onClose: function () {
-      alert("Paystack payment closed.");
+  // ===== Validate Billing =====
+  function validateBilling() {
+    const name = document.getElementById("name").value.trim();
+    const phone = document.getElementById("phone").value.trim();
+    const email = document.getElementById("email").value.trim();
+    const address = document.getElementById("address").value.trim();
+    if (!name || !phone || !email || !address) {
+      alert("Please fill all billing fields.");
+      return null;
     }
-  });
-
-  handler.openIframe();
-});
-
-// FLUTTERWAVE
-document.getElementById("payWithFlutterwave").addEventListener("click", function () {
-  const name = document.getElementById("name").value.trim();
-  const phone = document.getElementById("phone").value.trim();
-  const email = document.getElementById("email").value.trim();
-  const cart = getCart();
-
-  if (!name || !phone || !email) {
-    alert("Please fill out all billing fields.");
-    return;
+    return { name, phone, email, address };
   }
 
-  const total = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
+  // ===== Save Order & Clear Cart =====
+  async function saveOrder(order) {
+    try {
+      // Add userId for Firestore rules
+      const orderWithUser = { ...order, userId: currentUser.uid };
 
-  FlutterwaveCheckout({
-    public_key: "FLWPUBK_TEST-b2421fa441f5939350f84533d0f2d3a2-X", // Replace with your public key
-    tx_ref: "tx-" + Date.now(),
-    amount: total,
-    currency: "NGN",
-    payment_options: "card, banktransfer, ussd",
-    customer: {
-      email: email,
-      phone_number: phone,
-      name: name,
-    },
-    callback: function (response) {
-      if (response.status === "successful") {
-        const order = {
-          name,
-          phone,
-          email,
-          items: cart,
-          total,
-          timestamp: new Date().toISOString(),
-          paymentRef: response.transaction_id,
-          paymentMethod: "Flutterwave",
-          fulfilled: false
-        };
+      // Save to Firestore
+      await db.collection("orders").add(orderWithUser);
+
+      // Clear cart
+      const batch = db.batch();
+      const cartRef = db.collection("carts").doc(currentUser.uid).collection("items");
+      cartItems.forEach(item => batch.delete(cartRef.doc(item.docId)));
+      await batch.commit();
+
+      // Redirect to order-success page
+      window.location.href = "order-success.html";
+    } catch (err) {
+      console.error("Error saving order:", err);
+      alert("Something went wrong. Please contact support.");
+    }
+  }
+
+  // ===== PAYSTACK =====
+  document.getElementById("payWithPaystack").addEventListener("click", () => {
+    const billing = validateBilling();
+    if (!billing) return;
+    if (!cartItems.length) { alert("Cart is empty."); return; }
+
+    const total = cartItems.reduce((sum, i) => sum + i.price * i.quantity, 0);
+
+    const handler = PaystackPop.setup({
+      key: 'pk_test_0ed65a8011643dd303600706cb990c9ba067f199',
+      // key: 'pk_live_f9ff1f3fa32e516015254b81dcee81c3925f5225',
+      email: billing.email,
+      amount: total * 100,
+      currency: 'NGN',
+      ref: '' + Math.floor(Math.random() * 1000000000 + 1),
+      metadata: { custom_fields: [
+        { display_name: "Name", variable_name: "name", value: billing.name },
+        { display_name: "Phone", variable_name: "phone", value: billing.phone },
+        { display_name: "Address", variable_name: "address", value: billing.address }
+      ]},
+      callback: function(response) {
+        const order = { ...billing, items: cartItems, total, paymentRef: response.reference, paymentMethod: "Paystack", timestamp: new Date(), fulfilled: false };
         saveOrder(order);
-      } else {
-        alert("Payment failed or was cancelled.");
-      }
-    },
-    onclose: function () {
-      alert("Flutterwave payment closed.");
-    },
-    customizations: {
-      title: "SkinCare Store",
-      description: "Secure payment",
-      logo: "https://yourdomain.com/logo.png",
-    }
+      },
+      onClose: function() { alert("Payment closed."); }
+    });
+
+    handler.openIframe();
   });
+
+  // ===== FLUTTERWAVE =====
+document.getElementById("payWithFlutterwave").addEventListener("click", () => {
+  const billing = validateBilling();
+  if (!billing) return;
+  if (!cartItems.length) { alert("Cart is empty."); return; }
+
+  const total = cartItems.reduce((sum, i) => sum + i.price * i.quantity, 0);
+
+  const payBtn = document.getElementById("payWithFlutterwave");
+  payBtn.disabled = true;
+  const originalText = payBtn.textContent;
+  payBtn.textContent = "Processing...";
+
+  try {
+    FlutterwaveCheckout({
+      public_key: "FLWPUBK_TEST-b2421fa441f5939350f84533d0f2d3a2-X",
+      // public_key: "FLWPUBK-ab52b28f916f15647998c3593b2f511d-X",
+      tx_ref: "tx-" + Date.now(),
+      amount: total,
+      currency: "NGN",
+      payment_options: "card,banktransfer,ussd",
+      customer: { email: billing.email, phonenumber: billing.phone, name: billing.name },
+      callback: function(response) {
+        payBtn.disabled = false;
+        payBtn.textContent = originalText;
+
+        if (response.status === "successful") {
+          const order = {
+            ...billing,
+            items: cartItems,
+            total,
+            paymentRef: response.transaction_id,
+            paymentMethod: "Flutterwave",
+            timestamp: new Date(),
+            fulfilled: false
+          };
+          saveOrder(order).then(() => {
+            alert("Payment successful and order saved!");
+            cartItems = [];
+            displayCart();
+          }).catch(err => {
+            console.error("Failed to save order:", err);
+            alert("Payment successful but failed to save order.");
+          });
+        } else {
+          alert("Payment failed or cancelled.");
+        }
+      },
+      onclose: function() {
+        payBtn.disabled = false;
+        payBtn.textContent = originalText;
+        alert("Payment closed.");
+      },
+      customizations: { 
+        title: "SkinCare Store", 
+        description: "Secure payment", 
+        logo: "https://yourdomain.com/logo.png" 
+      }
+    });
+  } catch (err) {
+    payBtn.disabled = false;
+    payBtn.textContent = originalText;
+    console.error("Flutterwave initialization failed:", err);
+    alert("Payment initialization failed. Check console for details.");
+  }
 });
 
-function saveOrder(order) {
-  const history = JSON.parse(localStorage.getItem("orderHistory")) || [];
-  history.push(order);
-  localStorage.setItem("orderHistory", JSON.stringify(history));
-  localStorage.setItem("latestOrder", JSON.stringify(order));
-  localStorage.removeItem("cart");
-  window.location.href = "order-success.html";
-}
-  </script>
-  <script src="https://js.paystack.co/v1/inline.js"></script>
-  <script src="https://checkout.flutterwave.com/v3.js"></script>
+  // // ===== FLUTTERWAVE =====
+  // document.getElementById("payWithFlutterwave").addEventListener("click", () => {
+  //   const billing = validateBilling();
+  //   if (!billing) return;
+  //   if (!cartItems.length) { alert("Cart is empty."); return; }
+
+  //   const total = cartItems.reduce((sum, i) => sum + i.price * i.quantity, 0);
+
+  //   FlutterwaveCheckout({
+  //     public_key: "FLWPUBK_TEST-b2421fa441f5939350f84533d0f2d3a2-X",
+  //     tx_ref: "tx-" + Date.now(),
+  //     amount: total,
+  //     currency: "NGN",
+  //     payment_options: "card, banktransfer, ussd",
+  //     customer: { email: billing.email, phone_number: billing.phone, name: billing.name },
+  //     callback: function (response) {
+  //       if (response.status === "successful") {
+  //         const order = { ...billing, items: cartItems, total, paymentRef: response.transaction_id, paymentMethod: "Flutterwave", timestamp: new Date(), fulfilled: false };
+  //         saveOrder(order);
+  //       } else alert("Payment failed or cancelled.");
+  //     },
+  //     onclose: function () { alert("Payment closed."); },
+  //     customizations: { title: "SkinCare Store", description: "Secure payment", logo: "https://yourdomain.com/logo.png" }
+  //   });
+  // });
+</script>
+
+<!-- <script>
+  // ===== Firebase config & init =====
+  const firebaseConfig = {
+    apiKey: "AIzaSyAw3H8R1hlnURjF3Nw66uLIHLRm60ZOfB0",
+    authDomain: "e-commerce-project-9d5fc.firebaseapp.com",
+    projectId: "e-commerce-project-9d5fc",
+    storageBucket: "e-commerce-project-9d5fc.appspot.com",
+    messagingSenderId: "170026324556",
+    appId: "1:170026324556:web:cdae7d84eab13eecd21ae9"
+  };
+  firebase.initializeApp(firebaseConfig);
+  const auth = firebase.auth();
+  const db = firebase.firestore();
+
+  let currentUser = null;
+  let cartItems = [];
+
+  // ===== Auth check & prefill =====
+  auth.onAuthStateChanged(async user => {
+    if (!user) {
+      alert("Please log in to access checkout.");
+      window.location.href = "login.html";
+      return;
+    }
+    currentUser = user;
+
+    const userDoc = await db.collection("users").doc(user.uid).get();
+    const userData = userDoc.exists ? userDoc.data() : {};
+    document.getElementById("name").value = userData.name || "";
+    document.getElementById("email").value = userData.email || user.email || "";
+    document.getElementById("address").value = userData.address || "";
+
+    loadCart();
+  });
+
+  async function loadCart() {
+    if (!currentUser) return;
+    const snapshot = await db.collection("carts").doc(currentUser.uid).collection("items").get();
+    cartItems = snapshot.docs.map(doc => ({ docId: doc.id, ...doc.data() }));
+    renderSummary();
+  }
+
+  function renderSummary() {
+    const summaryList = document.getElementById("summaryList");
+    const totalSpan = document.getElementById("checkoutTotal");
+
+    summaryList.innerHTML = "";
+    let total = 0;
+
+    if (!cartItems.length) {
+      summaryList.innerHTML = "<p class='text-gray-500'>Your cart is empty.</p>";
+      totalSpan.textContent = "0";
+      return;
+    }
+
+    cartItems.forEach(item => {
+      const itemTotal = item.price * item.quantity;
+      total += itemTotal;
+      summaryList.innerHTML += `
+        <div class="flex justify-between">
+          <span>${item.name} x ${item.quantity}</span>
+          <span>₦${itemTotal.toLocaleString()}</span>
+        </div>
+      `;
+    });
+
+    totalSpan.textContent = total.toLocaleString();
+  }
+
+  // ===== Validate billing =====
+  function validateBilling() {
+    const name = document.getElementById("name").value.trim();
+    const phone = document.getElementById("phone").value.trim();
+    const email = document.getElementById("email").value.trim();
+    const address = document.getElementById("address").value.trim();
+    if (!name || !phone || !email || !address) {
+      alert("Please fill all billing fields.");
+      return null;
+    }
+    return { name, phone, email, address };
+  }
+
+  // ===== Save order & clear cart =====
+  async function saveOrder(order) {
+    try {
+      await db.collection("orders").add(order);
+
+      // Clear cart using batch
+      const batch = db.batch();
+      const cartRef = db.collection("carts").doc(currentUser.uid).collection("items");
+      cartItems.forEach(item => {
+        batch.delete(cartRef.doc(item.docId));
+      });
+      await batch.commit();
+
+      // redirect to order-success page
+      window.location.href = "order-success.html";
+    } catch (err) {
+      console.error("Error saving order:", err);
+      alert("Something went wrong. Please contact support.");
+    }
+  }
+
+  // ===== PAYSTACK =====
+  document.getElementById("payWithPaystack").addEventListener("click", () => {
+    const billing = validateBilling();
+    if (!billing) return;
+    if (!cartItems.length) { alert("Cart is empty."); return; }
+
+    const total = cartItems.reduce((sum, i) => sum + i.price * i.quantity, 0);
+
+    const handler = PaystackPop.setup({
+      key: 'pk_test_0ed65a8011643dd303600706cb990c9ba067f199',
+      email: billing.email,
+      amount: total * 100,
+      currency: 'NGN',
+      ref: '' + Math.floor(Math.random() * 1000000000 + 1),
+      metadata: { custom_fields: [
+        { display_name: "Name", variable_name: "name", value: billing.name },
+        { display_name: "Phone", variable_name: "phone", value: billing.phone },
+        { display_name: "Address", variable_name: "address", value: billing.address }
+      ]},
+      callback: function(response) {
+        const order = { ...billing, items: cartItems, total, paymentRef: response.reference, paymentMethod: "Paystack", timestamp: new Date(), fulfilled: false };
+        saveOrder(order);
+      },
+      onClose: function() { alert("Payment closed."); }
+    });
+    handler.openIframe();
+  });
+
+  // ===== FLUTTERWAVE =====
+  document.getElementById("payWithFlutterwave").addEventListener("click", () => {
+    const billing = validateBilling();
+    if (!billing) return;
+    if (!cartItems.length) { alert("Cart is empty."); return; }
+
+    const total = cartItems.reduce((sum, i) => sum + i.price * i.quantity, 0);
+
+    FlutterwaveCheckout({
+      public_key: "FLWPUBK_TEST-b2421fa441f5939350f84533d0f2d3a2-X",
+      tx_ref: "tx-" + Date.now(),
+      amount: total,
+      currency: "NGN",
+      payment_options: "card, banktransfer, ussd",
+      customer: { email: billing.email, phone_number: billing.phone, name: billing.name },
+      callback: function (response) {
+        if (response.status === "successful") {
+          const order = { ...billing, items: cartItems, total, paymentRef: response.transaction_id, paymentMethod: "Flutterwave", timestamp: new Date(), fulfilled: false };
+          saveOrder(order);
+        } else alert("Payment failed or cancelled.");
+      },
+      onclose: function () { alert("Payment closed."); },
+      customizations: { title: "SkinCare Store", description: "Secure payment", logo: "https://yourdomain.com/logo.png" }
+    });
+  });
+</script> -->
 </body>
 </html>

@@ -5,12 +5,61 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Customer Dashboard</title>
   <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    /* ===== MOBILE DASHBOARD FIXES ===== */
+@media (max-width: 640px) {
+
+  main {
+    padding: 1rem !important;
+  }
+
+  h2 {
+    font-size: 1rem !important;
+    text-align: center;
+  }
+
+  /* Reduce card spacing */
+  .dashboard-card {
+    padding: 1rem !important;
+  }
+
+  /* Status filter buttons scroll horizontally */
+  .status-filter-wrapper {
+    overflow-x: auto;
+    display: flex;
+    gap: 0.5rem;
+    padding-bottom: 5px;
+  }
+
+  .status-btn {
+    white-space: nowrap;
+    font-size: 0.75rem;
+    padding: 6px 10px !important;
+  }
+
+  /* Make table scroll sideways */
+  .table-wrapper {
+    overflow-x: auto;
+  }
+  
+  table {
+    min-width: 300px;
+  }
+
+  /* Modal: full screen on mobile */
+  #orderModal > div {
+    width: 95% !important;
+    max-height: 80vh !important;
+  }
+}
+  </style>
 </head>
 <body class="bg-gray-50 text-gray-900">
 
   <header class="bg-pink-100 p-4 shadow flex justify-between items-center">
+    <button onclick="history.back()">
     <h1 class="text-xl font-bold">👤 My Dashboard</h1>
-    <button onclick="logoutUser()" class="bg-red-500 text-white px-4 py-1 rounded hover:bg-red-600">Logout</button>
+    </button>
   </header>
 
   <main class="max-w-4xl mx-auto p-6">
@@ -18,6 +67,15 @@
 
     <div class="bg-white p-6 rounded shadow">
       <h3 class="text-md font-semibold mb-4">📦 Your Orders</h3>
+      <div class="fil mb-4 block gap-2 items-center">
+  <span class=" font-semibold">Filter by Status:</span>
+  <div>
+  <button onclick="filterOrders('All')" class="status-btn bg-pink-100 px-3 py-1 rounded hover:bg-pink-200" data-status="All">All</button>
+  <button onclick="filterOrders('Pending')" class="status-btn bg-pink-100 px-3 py-1 rounded hover:bg-pink-200" data-status="Pending">Pending</button>
+  <button onclick="filterOrders('Shipped')" class="status-btn bg-pink-100 px-3 py-1 rounded hover:bg-pink-200" data-status="Shipped">Shipped</button>
+  <button onclick="filterOrders('Delivered')" class="status-btn bg-pink-100 px-3 py-1 rounded hover:bg-pink-200" data-status="Delivered">Delivered</button>
+  </div>
+</div>
       <table class="w-full border text-sm">
         <thead class="bg-pink-100">
           <tr>
@@ -33,7 +91,7 @@
   </main>
 
   <!-- Modal -->
-  <div id="orderModal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-50">
+  <div id="orderModal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center flex justify-center z-50">
     <div class="bg-white w-11/12 max-w-lg p-6 rounded shadow-lg">
       <h2 class="text-xl font-bold mb-4">Order Details</h2>
       <div id="modalContent" class="space-y-2 max-h-[60vh] overflow-y-auto"></div>
@@ -41,80 +99,244 @@
     </div>
   </div>
 
-  <script>
-    // 🔐 Check if user is logged in
-    const loggedInUser = JSON.parse(localStorage.getItem("loggedInUser"));
-    if (!loggedInUser || !loggedInUser.email) {
-      window.location.href = "login.html"; // or your actual login page
-    }
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
+<script>
+    // ===== 1. Firebase Config & Init =====
+const firebaseConfig = {
+  apiKey: "AIzaSyAw3H8R1hlnURjF3Nw66uLIHLRm60ZOfB0",
+  authDomain: "e-commerce-project-9d5fc.firebaseapp.com",
+  projectId: "e-commerce-project-9d5fc",
+  storageBucket: "e-commerce-project-9d5fc.appspot.com",
+  messagingSenderId: "170026324556",
+  appId: "1:170026324556:web:cdae7d84eab13eecd21ae9"
+};
+firebase.initializeApp(firebaseConfig);
+const userAuth = firebase.auth();
+const userDb = firebase.firestore();
 
-    document.getElementById("userName").textContent = loggedInUser.name || "Customer";
+// ===== 2. Globals =====
+let currentUser = null;
+let ordersUnsub = null;
+let allOrders = [];
+let currentFilter = "All";
 
-    function logoutUser() {
-      localStorage.removeItem("loggedInUser");
-      window.location.href = "login.html";
-    }
+const orderTableBody = document.getElementById("orderTableBody");
+const userNameSpan = document.getElementById("userName");
+const orderModal = document.getElementById("orderModal");
+const modalContent = document.getElementById("modalContent");
 
-    // 🧾 Render orders for current user
-    function renderCustomerOrders() {
-      const history = JSON.parse(localStorage.getItem("orderHistory")) || [];
-      const userOrders = history.filter(order => order.email === loggedInUser.email);
+// ===== 3. Auth Listener =====
+userAuth.onAuthStateChanged(user => {
+  currentUser = user;
+  if (user) {
+    const fullName = user.displayName || (user.email ? user.email.split("@")[0] : "Customer");
+    const firstName = fullName.charAt(0).toUpperCase() + fullName.slice(1).toLowerCase();
+    userNameSpan.textContent = firstName;
+    startOrdersListener();
+  } else {
+    stopOrdersListener();
+    renderOrders([]);
+    userNameSpan.textContent = "Customer";
+  }
+});
 
-      const tbody = document.getElementById("orderTableBody");
-      if (userOrders.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="4" class="text-center p-4 text-gray-500">You have no orders yet.</td></tr>`;
-        return;
-      }
+// ===== 4. Orders Listener =====
+function startOrdersListener() {
+  stopOrdersListener();
+  if (!currentUser) return;
 
-      userOrders.reverse().forEach((order, index) => {
-        const date = new Date(order.timestamp).toLocaleString();
-        const itemCount = order.items.reduce((sum, item) => sum + item.quantity, 0);
+  // Show skeleton loader
+  orderTableBody.innerHTML = `
+    ${[...Array(3)].map(() => `
+      <tr class="animate-pulse">
+        <td class="p-2 bg-gray-200 h-4 rounded">&nbsp;</td>
+        <td class="p-2 bg-gray-200 h-4 rounded">&nbsp;</td>
+        <td class="p-2 bg-gray-200 h-4 rounded">&nbsp;</td>
+        <td class="p-2 bg-gray-200 h-4 rounded">&nbsp;</td>
+      </tr>`).join('')}
+  `;
 
-        tbody.innerHTML += `
-          <tr class="border-b">
-            <td class="p-2">${date}</td>
-            <td class="p-2">₦${order.total.toLocaleString()}</td>
-            <td class="p-2">${itemCount}</td>
-            <td class="p-2">
-              <button onclick="viewOrderDetails(${index})" class="text-blue-600 hover:underline">View</button>
-            </td>
-          </tr>
-        `;
+  const ordersRef = userDb
+    .collection("orders")
+    .where("userId", "==", currentUser.uid);
+
+  ordersUnsub = ordersRef.onSnapshot(snapshot => {
+    if (!snapshot.empty) {
+      allOrders = snapshot.docs.map(doc => {
+        const data = doc.data();
+        return {
+          id: doc.id,
+          total: data.total || 0,
+          items: data.items || [],
+          status: data.status || "Pending",
+          createdAt: data.createdAt || null,
+          timestamp: data.timestamp || null  // (checkout version)
+        };
       });
 
-      // Store filtered userOrders to access in viewOrderDetails
-      window._userOrders = userOrders;
+      allOrders.sort((a, b) => {
+        let aDate = a.createdAt || a.timestamp;
+        let bDate = b.createdAt || b.timestamp;
+
+        if (!aDate) return 1;
+        if (!bDate) return -1;
+
+        try {
+          aDate = aDate.toDate ? aDate.toDate() : new Date(aDate.seconds * 1000);
+          bDate = bDate.toDate ? bDate.toDate() : new Date(bDate.seconds * 1000);
+          return bDate - aDate;
+        } catch {
+          return 0;
+        }
+      });
+
+    } else {
+      allOrders = [];
     }
 
-    function viewOrderDetails(index) {
-      const order = window._userOrders[index];
-      const content = document.getElementById("modalContent");
-      content.innerHTML = `
-        <p><strong>Name:</strong> ${order.name}</p>
-        <p><strong>Email:</strong> ${order.email}</p>
-        <p><strong>Phone:</strong> ${order.phone}</p>
-        <p><strong>Total:</strong> ₦${order.total.toLocaleString()}</p>
-        <p><strong>Date:</strong> ${new Date(order.timestamp).toLocaleString()}</p>
-        <hr/>
-        <p class="font-semibold">Items:</p>
-        <ul class="list-disc pl-6">
-          ${order.items.map(item => `
-            <li>${item.name} × ${item.quantity} — ₦${(item.price * item.quantity).toLocaleString()}</li>
-          `).join("")}
-        </ul>
-      `;
+    applyOrderFilter(currentFilter);
+  }, error => {
+    console.error("Failed to fetch orders:", error);
+    orderTableBody.innerHTML = `<tr><td colspan="4" class="text-center text-red-500 p-2">Failed to load orders</td></tr>`;
+  });
+}
 
-      document.getElementById("orderModal").classList.remove("hidden");
-      document.getElementById("orderModal").classList.add("flex");
+function stopOrdersListener() {
+  if (ordersUnsub) ordersUnsub();
+  ordersUnsub = null;
+}
+
+// ===== 5. Apply Filter =====
+function filterOrders(status) {
+  currentFilter = status;
+
+  // update button UI
+  document.querySelectorAll(".status-btn").forEach(btn => {
+    if (btn.dataset.status === status) {
+      btn.classList.add("bg-pink-500", "text-white");
+      btn.classList.remove("bg-pink-100");
+    } else {
+      btn.classList.remove("bg-pink-500", "text-white");
+      btn.classList.add("bg-pink-100");
+    }
+  });
+
+  applyOrderFilter(status);
+}
+
+function applyOrderFilter(status) {
+  const filteredOrders = status === "All" ? allOrders : allOrders.filter(o => o.status === status);
+
+  // skeleton if still loading
+  if (!allOrders.length) {
+    orderTableBody.innerHTML = `
+      ${[...Array(3)].map(() => `
+        <tr class="animate-pulse">
+          <td class="p-2 bg-gray-200 h-4 rounded">&nbsp;</td>
+          <td class="p-2 bg-gray-200 h-4 rounded">&nbsp;</td>
+          <td class="p-2 bg-gray-200 h-4 rounded">&nbsp;</td>
+          <td class="p-2 bg-gray-200 h-4 rounded">&nbsp;</td>
+        </tr>`).join('')}
+    `;
+    return;
+  }
+
+  renderOrders(filteredOrders);
+}
+
+// ===== 6. Render Orders Table =====
+function renderOrders(orders) {
+  if (!orders.length) {
+    orderTableBody.innerHTML = `<tr><td colspan="4" class="text-center text-gray-500 p-2">No orders found.</td></tr>`;
+    return;
+  }
+
+  orderTableBody.innerHTML = "";
+  orders.forEach(order => {
+
+    // ✅ FIXED: Supports both createdAt AND timestamp
+    let dateStr = "N/A";
+    const rawDate = order.createdAt || order.timestamp;  
+
+    if (rawDate) {
+      if (typeof rawDate.toDate === "function") {
+        dateStr = rawDate.toDate().toLocaleDateString();
+      }
+      else if (rawDate.seconds) {
+        dateStr = new Date(rawDate.seconds * 1000).toLocaleDateString();
+      }
+      else {
+        const d = new Date(rawDate);
+        if (!isNaN(d)) dateStr = d.toLocaleDateString();
+      }
     }
 
-    function closeModal() {
-      const modal = document.getElementById("orderModal");
-      modal.classList.add("hidden");
-      modal.classList.remove("flex");
-    }
+    const totalStr = order.total?.toLocaleString() || "0";
+    const itemsCount = order.items?.length || 0;
 
-    document.addEventListener("DOMContentLoaded", renderCustomerOrders);
-  </script>
+    const tr = document.createElement("tr");
+    tr.className = "border-b hover:bg-gray-50";
+    tr.innerHTML = `
+      <td class="p-2 text-center">${dateStr}</td>
+      <td class="p-2 text-center">₦${totalStr}</td>
+      <td class="p-2 text-center">${itemsCount}</td>
+      <td class="p-2 text-center">
+        <button onclick="viewOrder('${order.id}')" class="text-blue-500 hover:underline">View</button>
+      </td>
+    `;
+    orderTableBody.appendChild(tr);
+  });
+}
+
+// ===== 7. View Order Modal =====
+window.viewOrder = async function(orderId) {
+  const order = allOrders.find(o => o.id === orderId);
+  if (!order) return;
+
+  modalContent.innerHTML = `
+    ${order.items?.map(i => `
+      <div class="flex justify-between items-center border-b py-2">
+        <div class="flex items-center gap-2">
+          <img src="${i.image || 'https://via.placeholder.com/50'}" class="w-10 h-10 object-cover rounded">
+          <span>${i.name}</span>
+        </div>
+        <div>
+          <span>${i.quantity} × ₦${i.price.toLocaleString()}</span>
+        </div>
+      </div>`).join('') || '<p>No items</p>'}
+    <div class="mt-2 text-right font-semibold">Total: ₦${order.total?.toLocaleString() || 0}</div>
+  `;
+  orderModal.classList.remove("hidden");
+};
+
+window.closeModal = function() {
+  orderModal.classList.add("hidden");
+};
+
+// ===== 8. Logout =====
+function logoutUser() {
+  if (!currentUser) return;
+  userAuth.signOut()
+    .then(() => showNotification("Logged out", "success"))
+    .catch(err => showNotification(err.message || "Logout failed", "error"));
+}
+
+// ===== 9. Notifications =====
+function showNotification(msg, type = "info", dur = 3000) {
+  const container = document.getElementById("notification-container") || document.body;
+  const div = document.createElement("div");
+  div.textContent = msg;
+  div.className = `px-4 py-2 rounded shadow text-white fixed top-4 right-4 z-50 opacity-0 transition-opacity`;
+  if (type === "success") div.classList.add("bg-green-500");
+  else if (type === "error") div.classList.add("bg-red-500");
+  else if (type === "warning") div.classList.add("bg-yellow-500","text-black");
+  else div.classList.add("bg-blue-500");
+  container.appendChild(div);
+  setTimeout(() => div.classList.add("opacity-100"), 10);
+  setTimeout(() => { div.classList.remove("opacity-100"); setTimeout(() => div.remove(), 300); }, dur);
+}
+</script>
 </body>
 </html>

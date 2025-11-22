@@ -2,10 +2,29 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Login</title>
   <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    *{
+        font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+    }
+    @import url('https://fonts.googleapis.com/css2?family=Lora:wght@700&family=Montserrat:wght@500&display=swap');
+  </style>
 </head>
 <body class="bg-gray-50 flex items-center justify-center h-screen">
+
+  <!-- Notification Container -->
+  <div id="notification-container" class="fixed top-5 right-5 space-y-2 z-50"></div>
+
+  <!-- Custom Prompt Container -->
+  <div id="prompt-container" class="fixed top-5 left-1/2 transform -translate-x-1/2 bg-white p-4 rounded-lg shadow-lg hidden z-50 flex items-center space-x-2">
+    <label id="prompt-label" class="font-medium text-gray-700">Enter value:</label>
+    <input id="prompt-input" type="text" class="border border-gray-300 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-400">
+    <button id="prompt-submit" class="bg-pink-600 text-white px-3 py-1 rounded hover:bg-pink-700">Submit</button>
+  </div>
+
+  <!-- Login Form -->
   <div class="bg-white p-6 rounded shadow-md w-full max-w-md">
     <h2 class="text-2xl font-bold mb-4 text-center">Login</h2>
     <form id="loginForm" class="space-y-4">
@@ -13,10 +32,298 @@
       <input type="password" id="loginPassword" placeholder="Password" class="w-full border p-2 rounded" required />
       <button type="submit" class="w-full bg-pink-600 text-white py-2 rounded hover:bg-pink-700">Login</button>
     </form>
+
+    <p class="mt-2 text-center text-sm">
+      <a href="#" id="forgotPassword" class="text-pink-600">Forgot Password?</a>
+    </p>
+
+    <div class="text-center my-4">
+      <p class="text-sm mb-2">OR</p>
+      <button id="googleLogin" class="w-full flex items-center justify-center border p-2 rounded hover:bg-gray-100">
+        <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" class="w-6 h-6 mr-2" />
+        Continue with Google
+      </button>
+    </div>
+
     <p class="mt-4 text-center text-sm">
-      Don't have an account? <a href="register.html" class="text-pink-600 ">Register</a>
+      Don't have an account? <a href="register.html" class="text-pink-600">Register</a>
     </p>
   </div>
-  <script src="js/auth.js"></script>
+
+  <!-- Firebase Scripts -->
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore-compat.js"></script>
+
+  <script>
+    // --- Notifications ---
+    function showNotification(message, type="info", duration=3000){
+      const container = document.getElementById("notification-container");
+      const notif = document.createElement("div");
+      notif.textContent = message;
+      notif.className = `px-4 py-2 rounded shadow text-white transition-transform transform opacity-0`;
+      if(type==="success") notif.classList.add("bg-green-500");
+      else if(type==="error") notif.classList.add("bg-red-500");
+      else if(type==="warning") notif.classList.add("bg-yellow-500 text-black");
+      else notif.classList.add("bg-blue-500");
+      container.appendChild(notif);
+      setTimeout(()=>notif.classList.add("opacity-100"),10);
+      setTimeout(()=>{notif.classList.remove("opacity-100"); setTimeout(()=>notif.remove(),300)},duration);
+    }
+
+    // --- Custom Prompt ---
+    function customPrompt(message, callback){
+      const container=document.getElementById("prompt-container");
+      const label=document.getElementById("prompt-label");
+      const input=document.getElementById("prompt-input");
+      const submit=document.getElementById("prompt-submit");
+      label.textContent=message;
+      input.value="";
+      container.classList.remove("hidden");
+      submit.onclick=()=>{
+        const value=input.value.trim();
+        container.classList.add("hidden");
+        callback(value);
+      };
+    }
+
+    // --- Firebase Setup ---
+    const firebaseConfig={
+      apiKey: "AIzaSyAw3H8R1hlnURjF3Nw66uLIHLRm60ZOfB0",
+      authDomain: "e-commerce-project-9d5fc.firebaseapp.com",
+      projectId: "e-commerce-project-9d5fc",
+      storageBucket: "e-commerce-project-9d5fc.appspot.com",
+      messagingSenderId: "170026324556",
+      appId: "1:170026324556:web:cdae7d84eab13eecd21ae9"
+    };
+    firebase.initializeApp(firebaseConfig);
+    const auth = firebase.auth();
+    const db = firebase.firestore();
+    const provider = new firebase.auth.GoogleAuthProvider();
+
+    // --- Email/Password Login ---
+    const loginForm = document.getElementById("loginForm");
+    loginForm?.addEventListener("submit", async e=>{
+      e.preventDefault();
+      const email=document.getElementById("loginEmail").value.trim();
+      const password=document.getElementById("loginPassword").value;
+      try{
+        const userCredential = await auth.signInWithEmailAndPassword(email,password);
+        const user = userCredential.user;
+        const userRef = db.collection("users").doc(user.uid);
+        const userSnap = await userRef.get();
+        if(!userSnap.exists){
+          await userRef.set({
+            name: user.displayName || "",
+            email: user.email,
+            phone: "",
+            address: "",
+            createdAt: firebase.firestore.FieldValue.serverTimestamp()
+          });
+        }
+        showNotification("Welcome, "+(user.displayName||user.email),"success");
+        window.location.href="index.html";
+      }catch(err){ console.error(err); showNotification(err.message,"error"); }
+    });
+
+    // --- Google Login ---
+    document.getElementById("googleLogin")?.addEventListener("click", async ()=>{
+      try{
+        const result = await auth.signInWithPopup(provider);
+        const user = result.user;
+        await db.collection("users").doc(user.uid).set({
+          name:user.displayName||"",
+          email:user.email,
+          phone:"",
+          address:""
+        },{merge:true});
+        showNotification("Logged in as "+(user.displayName||user.email),"success");
+        window.location.href="index.html";
+      }catch(err){ console.error(err); showNotification(err.message,"error"); }
+    });
+
+    // --- Forgot Password ---
+    document.getElementById("forgotPassword")?.addEventListener("click",()=>{
+      customPrompt("Enter your registered email:", async email=>{
+        if(!email) return;
+        try{ await auth.sendPasswordResetEmail(email); showNotification("Password reset email sent!","success"); }
+        catch(err){ showNotification(err.message,"error"); }
+      });
+    });
+
+    // --- Reload page if back navigation ---
+    window.addEventListener("pageshow", event=>{
+      if(event.persisted||(performance.navigation&&performance.navigation.type===2)) window.location.reload();
+    });
+  </script>
 </body>
 </html>
+
+
+<!-- <!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Login</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-50 flex items-center justify-center h-screen"> -->
+
+  <!-- Notification Container -->
+  <!-- <div id="notification-container" class="fixed top-5 right-5 space-y-2 z-50"></div> -->
+
+  <!-- Custom Prompt Container -->
+  <!-- <div id="prompt-container" class="fixed top-5 left-1/2 transform -translate-x-1/2 bg-white p-4 rounded-lg shadow-lg hidden z-50 flex items-center space-x-2">
+    <label id="prompt-label" class="font-medium text-gray-700">Enter value:</label>
+    <input id="prompt-input" type="text" class="border border-gray-300 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-400">
+    <button id="prompt-submit" class="bg-pink-600 text-white px-3 py-1 rounded hover:bg-pink-700">Submit</button>
+  </div> -->
+
+  <!-- Login Form -->
+  <!-- <div class="bg-white p-6 rounded shadow-md w-full max-w-md">
+    <h2 class="text-2xl font-bold mb-4 text-center">Login</h2>
+    <form id="loginForm" class="space-y-4">
+      <input type="email" id="loginEmail" placeholder="Email" class="w-full border p-2 rounded" required />
+      <input type="password" id="loginPassword" placeholder="Password" class="w-full border p-2 rounded" required />
+      <button type="submit" class="w-full bg-pink-600 text-white py-2 rounded hover:bg-pink-700">Login</button>
+    </form>
+    <p class="mt-2 text-center text-sm">
+      <a href="#" id="forgotPassword" class="text-pink-600">Forgot Password?</a>
+    </p>
+    <div class="text-center my-4">
+      <p class="text-sm mb-2">OR</p>
+      <button id="googleLogin" class="w-full flex items-center justify-center border p-2 rounded hover:bg-gray-100">
+        <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" class="w-6 h-6 mr-2" />
+        Continue with Google
+      </button>
+    </div>
+    <p class="mt-4 text-center text-sm">
+      Don't have an account? <a href="register.html" class="text-pink-600">Register</a>
+    </p>
+  </div> -->
+  
+  <!-- Firebase Scripts -->
+  <!-- <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore-compat.js"></script> -->
+
+  <!-- <script>
+    // --- Notification Function ---
+    function showNotification(message, type = "info", duration = 3000) {
+      const container = document.getElementById("notification-container");
+      const notif = document.createElement("div");
+
+      notif.textContent = message;
+      notif.className = `px-4 py-2 rounded shadow text-white transition-transform transform opacity-0`;
+
+      if (type === "success") notif.classList.add("bg-green-500");
+      else if (type === "error") notif.classList.add("bg-red-500");
+      else if (type === "warning") notif.classList.add("bg-yellow-500 text-black");
+      else notif.classList.add("bg-blue-500");
+
+      container.appendChild(notif);
+
+      // Animate in
+      setTimeout(() => { notif.classList.add("opacity-100"); }, 10);
+
+      // Remove after duration
+      setTimeout(() => {
+        notif.classList.remove("opacity-100");
+        setTimeout(() => notif.remove(), 300);
+      }, duration);
+    }
+
+    // --- Custom Prompt ---
+    function customPrompt(message, callback) {
+      const container = document.getElementById("prompt-container");
+      const label = document.getElementById("prompt-label");
+      const input = document.getElementById("prompt-input");
+      const submit = document.getElementById("prompt-submit");
+
+      label.textContent = message;
+      input.value = "";
+      container.classList.remove("hidden");
+
+      submit.onclick = () => {
+        const value = input.value.trim();
+        container.classList.add("hidden");
+        callback(value);
+      };
+    }
+
+    // --- Firebase Setup ---
+    const firebaseConfig = {
+    apiKey: "AIzaSyAw3H8R1hlnURjF3Nw66uLIHLRm60ZOfB0",
+    authDomain: "e-commerce-project-9d5fc.firebaseapp.com",
+    projectId: "e-commerce-project-9d5fc",
+    storageBucket: "e-commerce-project-9d5fc.appspot.com",
+    messagingSenderId: "170026324556",
+    appId: "1:170026324556:web:cdae7d84eab13eecd21ae9"
+  };
+    firebase.initializeApp(firebaseConfig);
+    const auth = firebase.auth();
+    const db = firebase.firestore();
+    const provider = new firebase.auth.GoogleAuthProvider();
+
+    // --- Login Form ---
+    const loginForm = document.getElementById("loginForm");
+    if (loginForm) {
+      loginForm.addEventListener("submit", e => {
+        e.preventDefault();
+        const email = document.getElementById("loginEmail").value.trim();
+        const password = document.getElementById("loginPassword").value;
+
+        auth.signInWithEmailAndPassword(email, password)
+          .then(userCredential => {
+            const user = userCredential.user;
+            db.collection("users").doc(user.uid).get()
+              .then(doc => {
+                const name = doc.exists ? doc.data().name : user.displayName || user.email;
+                showNotification("Welcome, " + name, "success");
+                window.location.href = "index.html";
+              })
+              .catch(err => showNotification("Error fetching user info: " + err.message, "error"));
+          })
+          .catch(error => showNotification(error.message, "error"));
+      });
+    }
+
+    // --- Forgot Password ---
+    document.getElementById("forgotPassword")?.addEventListener("click", () => {
+      customPrompt("Enter your registered email:", (email) => {
+        if (!email) return;
+        auth.sendPasswordResetEmail(email)
+          .then(() => showNotification("Password reset email sent!", "success"))
+          .catch(error => showNotification(error.message, "error"));
+      });
+    });
+
+    // --- Google Sign-In ---
+    document.getElementById("googleLogin")?.addEventListener("click", () => {
+      auth.signInWithPopup(provider)
+        .then(result => {
+          const user = result.user;
+          db.collection("users").doc(user.uid).set({
+            name: user.displayName || "",
+            email: user.email,
+            phone: "",
+            address: ""
+          }, { merge: true })
+          .then(() => {
+            showNotification("Logged in as " + user.displayName, "success");
+            window.location.href = "index.html";
+          })
+          .catch(err => showNotification("Firestore error: " + err.message, "error"));
+        })
+        .catch(err => showNotification(err.message, "error"));
+    });
+
+    // --- Reload page if back navigation ---
+    window.addEventListener("pageshow", function(event) {
+      if (event.persisted || (window.performance && performance.navigation.type === 2)) {
+        window.location.reload();
+      }
+    });
+  </script>
+</body>
+</html> -->
