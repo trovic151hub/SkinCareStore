@@ -754,96 +754,78 @@ document.addEventListener("DOMContentLoaded",()=>{
   const lob = document.getElementById("logoutBtn");
   if(lob) lob.addEventListener("click",()=>userAuth.signOut().then(()=>showNotification("Logged out","success")));
 
-  const loginSubmit=document.getElementById("loginSubmit");
-  if(loginSubmit){
-    loginSubmit.addEventListener("click",async(e)=>{
-      e.preventDefault();
-      const email=document.getElementById("loginEmail").value.trim();
-      const password=document.getElementById("loginPassword").value;
-      const loginErrorEl=document.getElementById("loginError");
-      if(loginErrorEl) loginErrorEl.classList.add("hidden");
-      if(!email || !password){
-        if(loginErrorEl){ loginErrorEl.textContent="Fill both fields."; loginErrorEl.classList.remove("hidden"); }
-        return;
-      }
-
-      const resetLoader = showButtonLoader(loginSubmit);
-      try{
-        await userAuth.signInWithEmailAndPassword(email,password);
-        closeLoginModal();
-        showNotification("Logged in","success");
-      }
-      catch(err){
-        if(loginErrorEl){ loginErrorEl.textContent=err.message||"Login failed"; loginErrorEl.classList.remove("hidden"); }
-      }
-      finally{
-        resetLoader && resetLoader();
-      }
-    });
-  }
-
-  // Global firebase objects (already loaded via <script> tags)
-const auth = firebase.auth();
-const provider = new firebase.auth.GoogleAuthProvider();
-
-// Optional scopes (already requested by default, but safe to keep)
-provider.addScope('profile');
-provider.addScope('email');
-
-// Click handler – try popup first, fall back to redirect if it fails
-document.getElementById("googleLogin").addEventListener("click", function () {
-
-  auth.signInWithPopup(provider)
-    .then(result => handleSuccess(result.user))
-    .catch(popupError => {
-      // Most common popup failures → switch to redirect flow
-      const shouldRedirect = 
-        popupError.code === 'auth/popup-blocked' ||
-        popupError.code === 'auth/popup-closed-by-user' ||
-        popupError.code === 'auth/cancelled-popup-request';
-
-      if (shouldRedirect) {
-        console.log("Popup failed or blocked → switching to redirect");
-        auth.signInWithRedirect(provider);
-      } else {
-        showNotification(popupError.message || "Google login failed", "error");
-        console.error(popupError);
-      }
-    });
-});
-
-// Run on EVERY page load to catch the redirect result
-auth.getRedirectResult()
-  .then(result => {
-    if (result && result.user) {
-      handleSuccess(result.user);
+  const loginSubmit = document.getElementById("loginSubmit");
+if(loginSubmit){
+  loginSubmit.addEventListener("click", async(e)=>{
+    e.preventDefault();
+    const email = document.getElementById("loginEmail").value.trim();
+    const password = document.getElementById("loginPassword").value;
+    const loginErrorEl = document.getElementById("loginError");
+    if(loginErrorEl) loginErrorEl.classList.add("hidden");
+    if(!email || !password){
+      if(loginErrorEl){ loginErrorEl.textContent = "Fill both fields."; loginErrorEl.classList.remove("hidden"); }
+      return;
     }
-  })
-  .catch(err => {
-    // Ignore the normal "no redirect" case
-    if (err.code !== 'auth/no-redirect-result') {
-      console.error("Redirect result error:", err);
-      showNotification("Login failed – please try again", "error");
+
+    try {
+      await userAuth.signInWithEmailAndPassword(email,password);
+      closeLoginModal();
+      showNotification("Logged in","success");
+    } catch(err){
+      if(loginErrorEl){ loginErrorEl.textContent = err.message || "Login failed"; loginErrorEl.classList.remove("hidden"); }
     }
   });
-
-// Shared success handler
-function handleSuccess(user) {
-  const userRef = firebase.firestore().collection("users").doc(user.uid);
-
-  userRef.set({
-    name: user.displayName || "",
-    email: user.email || "",
-    photoURL: user.photoURL || "",
-    lastLogin: firebase.firestore.FieldValue.serverTimestamp()
-  }, { merge: true })
-  .then(() => {
-    closeLoginModal();
-    showNotification("Logged in with Google!", "success");
-  })
-  .catch(e => console.warn("Failed to save user data", e));
 }
 
+const googleBtn = document.getElementById("googleLogin");
+if(googleBtn) googleBtn.addEventListener("click", async()=>{
+  const provider = new firebase.auth.GoogleAuthProvider();
+  try{
+    const result = await userAuth.signInWithPopup(provider);
+    const user = result.user;
+    try {
+      await userDb.collection("users").doc(user.uid).set({
+        name: user.displayName || "",
+        email: user.email
+      }, { merge:true });
+    } catch(e){
+      console.warn("user write failed", e);
+    }
+    closeLoginModal();
+    showNotification("Logged in with Google","success");
+  } catch(err){
+    console.error(err);
+    showNotification(err.message || "Google login failed","error");
+  }
+});
+
+  // const loginSubmit=document.getElementById("loginSubmit");
+  // if(loginSubmit){
+  //   loginSubmit.addEventListener("click",async(e)=>{
+  //     e.preventDefault();
+  //     const email=document.getElementById("loginEmail").value.trim();
+  //     const password=document.getElementById("loginPassword").value;
+  //     const loginErrorEl=document.getElementById("loginError");
+  //     if(loginErrorEl) loginErrorEl.classList.add("hidden");
+  //     if(!email || !password){
+  //       if(loginErrorEl){ loginErrorEl.textContent="Fill both fields."; loginErrorEl.classList.remove("hidden"); }
+  //       return;
+  //     }
+
+  //     const resetLoader = showButtonLoader(loginSubmit);
+  //     try{
+  //       await userAuth.signInWithEmailAndPassword(email,password);
+  //       closeLoginModal();
+  //       showNotification("Logged in","success");
+  //     }
+  //     catch(err){
+  //       if(loginErrorEl){ loginErrorEl.textContent=err.message||"Login failed"; loginErrorEl.classList.remove("hidden"); }
+  //     }
+  //     finally{
+  //       resetLoader && resetLoader();
+  //     }
+  //   });
+  // }
   // const googleBtn=document.getElementById("googleLogin");
   // if(googleBtn) googleBtn.addEventListener("click", async()=>{
   //   const resetLoader = showButtonLoader(googleBtn);
