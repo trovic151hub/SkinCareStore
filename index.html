@@ -754,93 +754,48 @@ document.addEventListener("DOMContentLoaded",()=>{
   const lob = document.getElementById("logoutBtn");
   if(lob) lob.addEventListener("click",()=>userAuth.signOut().then(()=>showNotification("Logged out","success")));
 
-  const loginSubmit = document.getElementById("loginSubmit");
-if(loginSubmit){
-  loginSubmit.addEventListener("click", async(e)=>{
-    e.preventDefault();
-    const email = document.getElementById("loginEmail").value.trim();
-    const password = document.getElementById("loginPassword").value;
-    const loginErrorEl = document.getElementById("loginError");
-    if(loginErrorEl) loginErrorEl.classList.add("hidden");
-    if(!email || !password){
-      if(loginErrorEl){ loginErrorEl.textContent = "Fill both fields."; loginErrorEl.classList.remove("hidden"); }
-      return;
-    }
+  const loginSubmit=document.getElementById("loginSubmit");
+  if(loginSubmit){
+    loginSubmit.addEventListener("click",async(e)=>{
+      e.preventDefault();
+      const email=document.getElementById("loginEmail").value.trim();
+      const password=document.getElementById("loginPassword").value;
+      const loginErrorEl=document.getElementById("loginError");
+      if(loginErrorEl) loginErrorEl.classList.add("hidden");
+      if(!email || !password){
+        if(loginErrorEl){ loginErrorEl.textContent="Fill both fields."; loginErrorEl.classList.remove("hidden"); }
+        return;
+      }
 
-    try {
-      await userAuth.signInWithEmailAndPassword(email,password);
+      const resetLoader = showButtonLoader(loginSubmit);
+      try{
+        await userAuth.signInWithEmailAndPassword(email,password);
+        closeLoginModal();
+        showNotification("Logged in","success");
+      }
+      catch(err){
+        if(loginErrorEl){ loginErrorEl.textContent=err.message||"Login failed"; loginErrorEl.classList.remove("hidden"); }
+      }
+      finally{
+        resetLoader && resetLoader();
+      }
+    });
+  }
+  const googleBtn=document.getElementById("googleLogin");
+  if(googleBtn) googleBtn.addEventListener("click", async()=>{
+    const resetLoader = showButtonLoader(googleBtn);
+    const provider=new firebase.auth.GoogleAuthProvider();
+    try{
+      const result=await userAuth.signInWithPopup(provider);
+      const user=result.user;
+      try{ await userDb.collection("users").doc(user.uid).set({name:user.displayName||"",email:user.email},{merge:true}); }catch(e){console.warn('user write failed',e);}
       closeLoginModal();
-      showNotification("Logged in","success");
-    } catch(err){
-      if(loginErrorEl){ loginErrorEl.textContent = err.message || "Login failed"; loginErrorEl.classList.remove("hidden"); }
+      showNotification("Logged in with Google","success");
+    } catch(err){ console.error(err); showNotification(err.message||"Google login failed","error"); }
+    finally{
+      resetLoader && resetLoader();
     }
   });
-}
-
-const googleBtn = document.getElementById("googleLogin");
-if(googleBtn) googleBtn.addEventListener("click", async()=>{
-  const provider = new firebase.auth.GoogleAuthProvider();
-  try{
-    const result = await userAuth.signInWithPopup(provider);
-    const user = result.user;
-    try {
-      await userDb.collection("users").doc(user.uid).set({
-        name: user.displayName || "",
-        email: user.email
-      }, { merge:true });
-    } catch(e){
-      console.warn("user write failed", e);
-    }
-    closeLoginModal();
-    showNotification("Logged in with Google","success");
-  } catch(err){
-    console.error(err);
-    showNotification(err.message || "Google login failed","error");
-  }
-});
-
-  // const loginSubmit=document.getElementById("loginSubmit");
-  // if(loginSubmit){
-  //   loginSubmit.addEventListener("click",async(e)=>{
-  //     e.preventDefault();
-  //     const email=document.getElementById("loginEmail").value.trim();
-  //     const password=document.getElementById("loginPassword").value;
-  //     const loginErrorEl=document.getElementById("loginError");
-  //     if(loginErrorEl) loginErrorEl.classList.add("hidden");
-  //     if(!email || !password){
-  //       if(loginErrorEl){ loginErrorEl.textContent="Fill both fields."; loginErrorEl.classList.remove("hidden"); }
-  //       return;
-  //     }
-
-  //     const resetLoader = showButtonLoader(loginSubmit);
-  //     try{
-  //       await userAuth.signInWithEmailAndPassword(email,password);
-  //       closeLoginModal();
-  //       showNotification("Logged in","success");
-  //     }
-  //     catch(err){
-  //       if(loginErrorEl){ loginErrorEl.textContent=err.message||"Login failed"; loginErrorEl.classList.remove("hidden"); }
-  //     }
-  //     finally{
-  //       resetLoader && resetLoader();
-  //     }
-  //   });
-  // }
-  // const googleBtn=document.getElementById("googleLogin");
-  // if(googleBtn) googleBtn.addEventListener("click", async()=>{
-  //   const resetLoader = showButtonLoader(googleBtn);
-  //   const provider=new firebase.auth.GoogleAuthProvider();
-  //   try{
-  //     const result=await userAuth.signInWithPopup(provider);
-  //     const user=result.user;
-  //     try{ await userDb.collection("users").doc(user.uid).set({name:user.displayName||"",email:user.email},{merge:true}); }catch(e){console.warn('user write failed',e);}
-  //     closeLoginModal();
-  //     showNotification("Logged in with Google","success");
-  //   } catch(err){ console.error(err); showNotification(err.message||"Google login failed","error"); }
-  //   finally{
-  //     resetLoader && resetLoader();
-  //   }
-  // });
 
   rotateTipsFade();
   setInterval(rotateTipsFade,5000);
