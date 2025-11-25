@@ -11,8 +11,21 @@
 
 <body class="bg-gray-100 text-gray-900">
 
-  <header class="bg-pink-600 text-white p-4">
+  <!-- Modal overlay -->
+<div id="modalOverlay" class="fixed inset-0 bg-black bg-opacity-50 hidden flex items-center justify-center z-50">
+  <div class="bg-white rounded shadow-lg max-w-sm w-full p-6">
+    <h3 id="modalTitle" class="text-lg font-bold mb-4">Title</h3>
+    <p id="modalMessage" class="mb-6">Message</p>
+    <div class="flex justify-end space-x-2">
+      <button id="modalCancelBtn" class="bg-gray-300 text-gray-800 px-4 py-2 rounded hover:bg-gray-400 hidden">Cancel</button>
+      <button id="modalOkBtn" class="bg-pink-600 text-white px-4 py-2 rounded hover:bg-pink-700">OK</button>
+    </div>
+  </div>
+</div>
+
+  <header class="bg-pink-600 text-white p-4 flex justify-between">
     <h1 class="text-xl font-bold">Admin Dashboard</h1>
+    <h2 id="welcomeAdmin" class="text-xl font-bold text-white"></h2>
   </header>
 
   <nav class="bg-gray-200 p-4 flex gap-4 text-sm">
@@ -94,17 +107,10 @@
     appId: "1:816965536848:web:5ea18f3227f1ae63911555"
   };
 
-  // --- Initialize separate admin app ---
-  let adminApp;
-  if (!firebase.apps.length) {
-    adminApp = firebase.initializeApp(adminFirebaseConfig);
-  } else {
-    try {
-      adminApp = firebase.app("AdminApp");
-    } catch {
-      adminApp = firebase.initializeApp(adminFirebaseConfig, "AdminApp");
-    }
-  }
+  // Prevent duplicate initialization of Firebase Admin App
+  const adminApp =
+    firebase.apps.find(app => app.name === "AdminApp") ||
+    firebase.initializeApp(adminFirebaseConfig, "AdminApp");
 
   const adminAuth = adminApp.auth();
   const db = adminApp.firestore();
@@ -113,44 +119,52 @@
   let lastVisibleProduct = null;
   const PRODUCTS_PER_PAGE = 5;
 
-  // ========== PAGE PROTECTION ==========
-  function goToLogin() {
-    localStorage.removeItem("isAdmin");
-    window.location.href = "admin-login.html";
-  }
-
+  // ===== ADMIN LOGIN & WELCOME =====
   adminAuth.onAuthStateChanged(async (user) => {
     if (!user) return goToLogin();
 
     try {
       const adminDoc = await db.collection("admins").doc(user.uid).get();
       if (!adminDoc.exists) {
-        alert("Access denied. You are not an admin.");
-        await adminAuth.signOut();
-        return goToLogin();
-      }
+  await showAlert("Access denied. You are not an admin.", "Access Denied");
+  await adminAuth.signOut();
+  return goToLogin();
+}
+
+      // Store admin login locally
       localStorage.setItem("isAdmin", "true");
+
+      // Show welcome with first name
+      const fullName = adminDoc.data().name || "Admin";
+      const firstName = fullName.split(" ")[0];
+      const welcomeEl = document.getElementById("welcomeAdmin");
+      if (welcomeEl) welcomeEl.textContent = `Welcome, ${firstName}`;
+
     } catch (err) {
       console.error("Permission error:", err);
       goToLogin();
     }
   });
 
-  // ========== LOAD PRODUCTS ==========
+  function goToLogin() {
+    localStorage.removeItem("isAdmin");
+    window.location.href = "admin-login.html";
+  }
+
+  // ===== LOAD PRODUCTS =====
   async function loadProducts(startAfterDoc = null) {
     let query = db.collection("products").orderBy("name").limit(PRODUCTS_PER_PAGE);
     if (startAfterDoc) query = query.startAfter(startAfterDoc);
 
     const snap = await query.get();
     const products = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-    lastVisibleProduct = snap.docs[snap.docs.length - 1]; // for next page
+    lastVisibleProduct = snap.docs[snap.docs.length - 1];
     return products;
   }
 
   async function renderTable(append = false) {
     const tbody = document.getElementById("productTableBody");
 
-    // --- 1. Show skeletons while loading ---
     if (!append) tbody.innerHTML = "";
     for (let i = 0; i < PRODUCTS_PER_PAGE; i++) {
       tbody.innerHTML += `
@@ -165,13 +179,9 @@
       `;
     }
 
-    // --- 2. Fetch actual products ---
     const products = await loadProducts(append ? lastVisibleProduct : null);
 
-    // --- 3. Remove skeletons ---
     if (!append) tbody.innerHTML = "";
-
-    // --- 4. Render actual products ---
     products.forEach(p => {
       tbody.innerHTML += `
         <tr class="border-b">
@@ -188,7 +198,6 @@
       `;
     });
 
-    // --- 5. Show message if no products ---
     if (!append && products.length === 0) {
       tbody.innerHTML = `
         <tr>
@@ -197,11 +206,10 @@
       `;
     }
 
-    // --- 6. Disable Load More if no more products ---
     document.getElementById("loadMoreProductsBtn").disabled = products.length < PRODUCTS_PER_PAGE;
   }
 
-  // ========== SAVE PRODUCT ==========
+  // ===== SAVE PRODUCT =====
   document.getElementById("productForm").addEventListener("submit", async e => {
     e.preventDefault();
     const data = {
@@ -223,11 +231,11 @@
       document.getElementById("productForm").reset();
       renderTable();
     } catch (err) {
-      alert("Failed to save: " + err.message);
-    }
+    await showAlert("Failed to save: " + err.message, "Error");
+  }
   });
 
-  // ========== EDIT ==========
+  // ===== EDIT / DELETE =====
   window.editProduct = async id => {
     const doc = await db.collection("products").doc(id).get();
     const p = doc.data();
@@ -240,15 +248,56 @@
     editId = id;
   };
 
-  // ========== DELETE ==========
   window.deleteProduct = async id => {
-    if (confirm("Delete this product?")) {
-      await db.collection("products").doc(id).delete();
-      renderTable();
-    }
-  };
+  const confirmed = await showConfirm("Delete this product?");
+  if (!confirmed) return;
 
-  // ========== LOGOUT ==========
+  await db.collection("products").doc(id).delete();
+  renderTable();
+};
+
+  // ===== MODAL UTILS =====
+const modalOverlay = document.getElementById("modalOverlay");
+const modalTitle = document.getElementById("modalTitle");
+const modalMessage = document.getElementById("modalMessage");
+const modalOkBtn = document.getElementById("modalOkBtn");
+const modalCancelBtn = document.getElementById("modalCancelBtn");
+
+// Show alert modal (single OK button)
+function showAlert(message, title = "Alert") {
+  modalTitle.textContent = title;
+  modalMessage.textContent = message;
+  modalCancelBtn.classList.add("hidden");
+  modalOverlay.classList.remove("hidden");
+
+  return new Promise(resolve => {
+    modalOkBtn.onclick = () => {
+      modalOverlay.classList.add("hidden");
+      resolve(true);
+    };
+  });
+}
+
+// Show confirm modal (OK + Cancel)
+function showConfirm(message, title = "Confirm") {
+  modalTitle.textContent = title;
+  modalMessage.textContent = message;
+  modalCancelBtn.classList.remove("hidden");
+  modalOverlay.classList.remove("hidden");
+
+  return new Promise(resolve => {
+    modalOkBtn.onclick = () => {
+      modalOverlay.classList.add("hidden");
+      resolve(true);
+    };
+    modalCancelBtn.onclick = () => {
+      modalOverlay.classList.add("hidden");
+      resolve(false);
+    };
+  });
+}
+
+  // ===== LOGOUT =====
   window.logoutAdmin = () => {
     adminAuth.signOut().then(() => {
       localStorage.removeItem("isAdmin");
@@ -256,12 +305,12 @@
     });
   };
 
-  // ========== LOAD MORE BUTTON ==========
+  // ===== LOAD MORE BUTTON =====
   document.getElementById("loadMoreProductsBtn").addEventListener("click", () => {
     renderTable(true); // append = true
   });
 
-  // Initial load
+  // INITIAL LOAD
   renderTable();
 </script>
 </body>
