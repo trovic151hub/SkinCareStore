@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Admin Login</title>
   <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css" crossorigin="anonymous" referrerpolicy="no-referrer" />
 </head>
 <body class="bg-gray-100 flex items-center justify-center h-screen">
 
@@ -12,9 +13,24 @@
     <h2 class="text-2xl font-bold mb-4 text-center">Admin Login</h2>
     <form id="adminLoginForm" class="space-y-4">
       <input type="email" id="adminEmail" placeholder="Email" class="w-full border p-2 rounded" required />
-      <input type="password" id="adminPassword" placeholder="Password" class="w-full border p-2 rounded" required />
-      <button type="submit" class="w-full bg-pink-600 text-white py-2 rounded hover:bg-pink-700">Login</button>
+
+      <div class="relative">
+        <input type="password" id="adminPassword" placeholder="Password" class="w-full border p-2 rounded" required />
+        <!-- Eye icon -->
+        <i id="toggleAdminPassword" class="fa fa-eye absolute right-3 top-3 text-gray-500 cursor-pointer"></i>
+      </div>
+
+      <!-- Login button with spinner -->
+      <button id="loginBtn" type="submit"
+        class="w-full bg-pink-600 text-white py-2 rounded hover:bg-pink-700 flex items-center justify-center gap-2">
+        <span id="loginBtnText">Login</span>
+        <span id="loginSpinner" class="hidden">
+          <i class="fa-solid fa-circle-notch fa-spin"></i>
+        </span>
+      </button>
+
       <p id="loginError" class="text-red-500 text-sm hidden mt-2"></p>
+
       <p class="mt-4 text-center text-sm">
         Not an Admin? <a href="admin-register.html" class="text-pink-600">Register</a>
       </p>
@@ -24,6 +40,7 @@
 <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore-compat.js"></script>
+
 <script>
   // --- Admin Firebase config (separate auth project) ---
   const adminFirebaseConfig = {
@@ -35,67 +52,102 @@
     appId: "1:816965536848:web:5ea18f3227f1ae63911555"
   };
 
-  // Initialize Firebase app for admin (name it so it doesn’t conflict)
+  // Initialize Firebase app for admin (named)
   let adminApp;
   if (!firebase.apps.length) {
     adminApp = firebase.initializeApp(adminFirebaseConfig);
   } else {
     try {
-      adminApp = firebase.app("AdminApp"); // use named app
+      adminApp = firebase.app("AdminApp");
     } catch {
       adminApp = firebase.initializeApp(adminFirebaseConfig, "AdminApp");
     }
   }
 
-  const adminAuth = adminApp.auth(); // Admin-only auth
-  const db = firebase.firestore(); // Shared Firestore from main project
+  const adminAuth = adminApp.auth();
+  const db = firebase.firestore();
 
   const form = document.getElementById("adminLoginForm");
   const loginError = document.getElementById("loginError");
+  const loginBtn = document.getElementById("loginBtn");
+  const loginBtnText = document.getElementById("loginBtnText");
+  const loginSpinner = document.getElementById("loginSpinner");
 
+  // Password Eye Toggle
+  const toggleAdminPassword = document.getElementById("toggleAdminPassword");
+  const adminPassword = document.getElementById("adminPassword");
+
+  toggleAdminPassword.addEventListener("click", () => {
+    if (adminPassword.type === "password") {
+      adminPassword.type = "text";
+      toggleAdminPassword.classList.remove("fa-eye");
+      toggleAdminPassword.classList.add("fa-eye-slash");
+    } else {
+      adminPassword.type = "password";
+      toggleAdminPassword.classList.remove("fa-eye-slash");
+      toggleAdminPassword.classList.add("fa-eye");
+    }
+  });
+
+  // Admin Login
   form.addEventListener("submit", async (e) => {
     e.preventDefault();
     loginError.classList.add("hidden");
 
+    // Activate loading state
+    loginBtn.disabled = true;
+    loginBtn.classList.add("opacity-50", "cursor-not-allowed");
+    loginBtnText.textContent = "Logging in...";
+    loginSpinner.classList.remove("hidden");
+
     const email = document.getElementById("adminEmail").value.trim();
-    const password = document.getElementById("adminPassword").value;
+    const password = adminPassword.value;
 
     try {
-      // 1. Sign in via adminAuth
       const userCredential = await adminAuth.signInWithEmailAndPassword(email, password);
       const user = userCredential.user;
 
-      // 2. Check if this user exists in admins collection (Firestore)
       const adminDoc = await db.collection("admins").doc(user.uid).get();
       if (!adminDoc.exists) {
         loginError.textContent = "You are not authorized as admin.";
         loginError.classList.remove("hidden");
         await adminAuth.signOut();
+
+        // Reset button
+        loginBtn.disabled = false;
+        loginBtn.classList.remove("opacity-50", "cursor-not-allowed");
+        loginBtnText.textContent = "Login";
+        loginSpinner.classList.add("hidden");
         return;
       }
 
-      // 3. Update last login timestamp in Firestore
       await db.collection("admins").doc(user.uid).update({
         lastLogin: firebase.firestore.FieldValue.serverTimestamp()
       });
 
-      // 4. Save admin state locally (optional, for UI)
       localStorage.setItem("isAdminLoggedIn", "true");
-
-      // 5. Redirect to admin dashboard
       window.location.href = "Admins.html";
 
     } catch (err) {
       console.error(err);
       loginError.textContent = err.message;
       loginError.classList.remove("hidden");
+
+      // Reset button
+      loginBtn.disabled = false;
+      loginBtn.classList.remove("opacity-50", "cursor-not-allowed");
+      loginBtnText.textContent = "Login";
+      loginSpinner.classList.add("hidden");
     }
   });
 
-  // Optional: log out admin
+  // Admin Logout
   function logoutAdmin() {
-    localStorage.removeItem("isAdminLoggedIn");
-    adminAuth.signOut().then(() => window.location.href = "admin-login.html");
+    adminAuth.signOut().then(() => {
+      // optional: remove localStorage
+      localStorage.removeItem("isAdminLoggedIn");
+      window.location.href = "admin-login.html";
+    });
   }
 </script>
 </body>
