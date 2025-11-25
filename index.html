@@ -35,35 +35,6 @@
     display: none !important;
   }
 
-  #leaveLoader {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background: rgba(255,255,255,0.8);
-  display: none;
-  justify-content: center;
-  align-items: center;
-  z-index: 99999;
-  backdrop-filter: blur(3px);
-  transition: opacity 0.3s ease;
-}
-
-#leaveLoader.active {
-  display: flex;
-  opacity: 1;
-}
-
-.spinner {
-  width: 45px;
-  height: 45px;
-  border-radius: 50%;
-  border: 4px solid #ccc;
-  border-top-color: #000;
-  animation: spin 0.75s linear infinite;
-}
-
 @keyframes spin {
   to { transform: rotate(360deg); }
 }
@@ -106,7 +77,7 @@
     transform: translateY(0);
   }
 }
-    
+
  .logo {
   text-align: center;
   display: block;
@@ -123,7 +94,7 @@
 <body class="bg-white text-gray-800">
 
   <!-- Notification container -->
-  <div id="notification-container"></div>
+  <div id="notification-container" class="note"></div>
     
   <!-- Navbar -->
   <header id="mainHeader"
@@ -144,7 +115,7 @@
     <button id="closeMenu" class="text-2xl text-gray-600 mb-6 hover:text-red-500">&times;</button>
 
     <div class="flex flex-col space-y-4 text-lg font-medium">
-        <span id="welcomeText" class="text-sm text-gray-700 hidden"></span>
+        <span id="welcomeTextMobile" class="text-sm text-gray-700 hidden"></span>
 
         <a href="products.html" class="hover:text-pink-500 flex items-center gap-2">
             <i class="fa fa-shop"></i> Shop
@@ -160,12 +131,12 @@
             <i class="fas fa-envelope text-pink-500"></i> Email Us
         </a>
 
-        <a href="https://wa.me/2349053380773" target="_blank"
+        <a href="https://wa.me/2347036594806" target="_blank"
            class="block px-2 py-2 text-sm text-gray-700 hover:bg-pink-50 rounded flex items-center gap-2">
             <i class="fab fa-whatsapp text-green-500"></i> WhatsApp
         </a>
 
-        <a href="https://instagram.com/yourhandle" target="_blank"
+        <a href="https://instagram.com/pearlskincareproductss" target="_blank"
            class="block px-2 py-2 text-sm text-gray-700 hover:bg-pink-50 rounded flex items-center gap-2">
             <i class="fab fa-instagram text-pink-600"></i> Instagram
         </a>
@@ -210,7 +181,7 @@
       </div>
 
       <div class="log-btn">
-      <span id="welcomeText" class="text-sm text-gray-700 hidden main-head"></span>
+      <span id="welcomeText" class="text-sm text-gray-700 main-head"></span>
       <button id="loginBtn"><i class="fas fa-user text-xl hover:underline text-sm"></i></button>
       <button id="logoutBtn"><i class="fas fa-user-check text-pink-600 hover:underline ml-2 text-sm hidden"></i></button>
       </div>
@@ -227,9 +198,15 @@
         class="w-full border p-2 rounded mb-3"
         placeholder="Email" />
 
-      <input id="loginPassword" type="password"
-        class="w-full border p-2 rounded mb-3"
-        placeholder="Password" />
+      <div class="relative mb-3">
+  <input id="loginPassword" type="password"
+         class="w-full border p-2 rounded"
+         placeholder="Password" />
+  <button type="button" id="toggleLoginPassword" 
+          class="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-500">
+    <i class="fas fa-eye"></i>
+  </button>
+</div>
 
       <button id="loginSubmit"
         class="w-full bg-pink-600 text-white py-2 rounded hover:bg-pink-700">
@@ -245,8 +222,8 @@
       </div>
 
       <div class="text-center my-4">
-        <button id="googleLogin" class="w-full flex items-center justify-center border p-2 rounded hover:bg-gray-100">
-          <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" class="w-6 h-6 mr-2" />
+        <button id="googleLogin" class="disabled:bg-gray-100 disabled:cursor-not-allowed w-full flex items-center justify-center border p-2 rounded hover:bg-gray-100">
+          <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" class="w-6 h-6 mr-2 " />
           Continue with Google
         </button>
       </div>
@@ -258,28 +235,6 @@
 
       <button onclick="closeLoginModal()"
         class="absolute top-3 right-3 text-gray-500 text-xl">&times;</button>
-    </div>
-  </div>
-
-  <!-- Signup Modal -->
-  <div id="signupModal"
-    class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-    <div class="bg-white p-6 rounded-lg w-full max-w-sm relative shadow">
-      <button onclick="closeSignupModal()"
-        class="absolute top-2 right-3 text-gray-500 text-xl hover:text-red-600">×</button>
-      <h3 class="text-lg font-bold text-pink-600 mb-4">Create an Account</h3>
-
-      <input id="signupName" type="text" placeholder="Full Name" class="w-full mb-3 px-4 py-2 border rounded" />
-      <input id="signupEmail" type="email" placeholder="Email" class="w-full mb-3 px-4 py-2 border rounded" />
-      <input id="signupPassword" type="password" placeholder="Password"
-        class="w-full mb-4 px-4 py-2 border rounded" />
-
-      <button id="signupSubmit"
-        class="w-full bg-pink-600 text-white py-2 rounded hover:bg-pink-700">Sign Up</button>
-
-      <p class="text-sm mt-4 text-center">Already have an account?
-        <button onclick="openLoginModal()" class="text-pink-600 underline hover:text-pink-800">Login</button>
-      </p>
     </div>
   </div>
 
@@ -367,7 +322,7 @@
   <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore-compat.js"></script>
 
-    <script>
+<script>
 (function(){
   const userFirebaseConfig = {
     apiKey: "AIzaSyAw3H8R1hlnURjF3Nw66uLIHLRm60ZOfB0",
@@ -405,7 +360,6 @@
   let sliderIndex = 0;
   const perPage = 8;
 
-  // cart listener unsubscribe handle (to avoid multiple listeners)
   let cartUnsub = null;
 
   const skinTips = [
@@ -503,7 +457,6 @@
         }catch(e){}
       });
 
-      // skeleton -> content with fade
       const skeletons = productList.children;
       for(let i=0;i<skeletons.length;i++){
         skeletons[i].style.transition="opacity 0.3s";
@@ -548,7 +501,6 @@
 
     displayedCount += chunk.length;
 
-    // attach handlers
     productList.querySelectorAll('.view-btn').forEach(btn=>{
       if(!btn.dataset.bound){
         btn.dataset.bound='1';
@@ -568,7 +520,6 @@
       }
     });
 
-    // Load more button
     if(displayedCount < currentProducts.length){
       if(!document.getElementById("loadMoreBtn")){
         const btn = document.createElement("button");
@@ -584,7 +535,6 @@
     }
   }
 
-  // Infinite scroll
   window.addEventListener('scroll', ()=>{
     const scrollable = document.documentElement.scrollHeight - window.innerHeight;
     if(window.scrollY >= scrollable - 100){
@@ -592,75 +542,73 @@
     }
   });
 
-  // Leave loader
   function showLoader(el){
     if(!el) return;
     const original = el.innerHTML;
     el.disabled=true;
     el.innerHTML=`<span class="animate-spin border-2 border-white border-t-transparent rounded-full w-4 h-4 inline-block"></span> Loading...`;
-    setTimeout(()=>{ el.disabled=false; el.innerHTML=original; }, 800); // auto-remove in case action is fast
+    setTimeout(()=>{ el.disabled=false; el.innerHTML=original; }, 800);
   }
 
-  // ----------------- Existing product modal & cart code -----------------
   window.viewProduct = function(id){
-  const product = currentProducts.find(p=>p.id===id);
-  if(!product) return;
-  const modal = document.getElementById("productModal");
-  if(!modal) return;
-  const nameEl = modal.querySelector("#modalProductName");
-  const imgEl = modal.querySelector("#modalProductImage");
-  const priceEl = modal.querySelector("#modalProductPrice");
-  const descEl = modal.querySelector("#modalProductDescription");
-  const addBtn = modal.querySelector("#modalAddToCartBtn");
+    const product = currentProducts.find(p=>p.id===id);
+    if(!product) return;
+    const modal = document.getElementById("productModal");
+    if(!modal) return;
+    const nameEl = modal.querySelector("#modalProductName");
+    const imgEl = modal.querySelector("#modalProductImage");
+    const priceEl = modal.querySelector("#modalProductPrice");
+    const descEl = modal.querySelector("#modalProductDescription");
+    const addBtn = modal.querySelector("#modalAddToCartBtn");
 
-  function showButtonLoader(btn){
-    if(!btn) return;
-    const original = btn.innerHTML;
-    btn.disabled = true;
-    btn.innerHTML = `<span class="animate-spin border-2 border-white border-t-transparent rounded-full w-4 h-4 inline-block"></span> Loading...`;
-    return ()=>{
-      btn.disabled = false;
-      btn.innerHTML = original;
-    };
+    function showButtonLoader(btn){
+      if(!btn) return;
+      const original = btn.innerHTML;
+      btn.disabled = true;
+      btn.innerHTML = `<span class="animate-spin border-2 border-white border-t-transparent rounded-full w-4 h-4 inline-block"></span> Loading...`;
+      return ()=>{
+        btn.disabled = false;
+        btn.innerHTML = original;
+      };
+    }
+
+    if(nameEl) nameEl.textContent = product.name||'';
+    if(imgEl) imgEl.src = product.image || 'https://via.placeholder.com/300x200?text=No+Image';
+    if(priceEl) priceEl.textContent = `₦${(Number(product.price||0)).toLocaleString()}`;
+    if(descEl) descEl.textContent = product.description||'';
+
+    if(addBtn) {
+      addBtn.onclick = async () => {
+        const resetLoader = showButtonLoader(addBtn);
+        await addToCart(id);
+        resetLoader && resetLoader();
+      };
+      addBtn.dataset.bound = '1';
+    }
+
+    const buyNowExists = modal.querySelector("#buyNowBtn");
+    if(!buyNowExists){
+      const btn = document.createElement("button");
+      btn.id="buyNowBtn";
+      btn.className="mt-2 w-full px-4 py-2 border rounded hover:bg-gray-100";
+      btn.textContent="Buy Now";
+      btn.onclick = async () => {
+        const resetLoader = showButtonLoader(btn);
+        await addToCart(id);
+        resetLoader && resetLoader();
+        window.location.href = "cart.html";
+      };
+      const preferred = modal.querySelector(".relative") || modal.querySelector(".bg-white") || modal;
+      preferred.appendChild(btn);
+    }
+
+    modal.classList.remove("hidden");
   }
 
-  if(nameEl) nameEl.textContent = product.name||'';
-  if(imgEl) imgEl.src = product.image || 'https://via.placeholder.com/300x200?text=No+Image';
-  if(priceEl) priceEl.textContent = `₦${(Number(product.price||0)).toLocaleString()}`;
-  if(descEl) descEl.textContent = product.description||'';
-  
-  if(addBtn) {
-    addBtn.onclick = async () => {
-      const resetLoader = showButtonLoader(addBtn);
-      await addToCart(id);
-      resetLoader && resetLoader();
-    };
-    addBtn.dataset.bound = '1';
+  window.closeModal = function(){ 
+    const m=document.getElementById("productModal"); 
+    if(m) m.classList.add("hidden"); 
   }
-
-  const buyNowExists = modal.querySelector("#buyNowBtn");
-  if(!buyNowExists){
-    const btn = document.createElement("button");
-    btn.id="buyNowBtn";
-    btn.className="mt-2 w-full px-4 py-2 border rounded hover:bg-gray-100";
-    btn.textContent="Buy Now";
-    btn.onclick = async () => {
-      const resetLoader = showButtonLoader(btn);
-      await addToCart(id);
-      resetLoader && resetLoader();
-      window.location.href = "cart.html";
-    };
-    const preferred = modal.querySelector(".relative") || modal.querySelector(".bg-white") || modal;
-    preferred.appendChild(btn);
-  }
-
-  modal.classList.remove("hidden");
-}
-
-window.closeModal = function(){ 
-  const m=document.getElementById("productModal"); 
-  if(m) m.classList.add("hidden"); 
-}
 
   window.addToCart = async function(id){
     if(!userAuth.currentUser) return showNotification("Login required","error");
@@ -704,33 +652,59 @@ window.closeModal = function(){
     },err=>{ console.error(err); el.textContent="0"; });
   }
 
-  userAuth.onAuthStateChanged(user=>{
-    const loginBtn=document.getElementById("loginBtn");
-    const logoutBtn=document.getElementById("logoutBtn");
-    const welcomeText=document.getElementById("welcomeText");
+  userAuth.onAuthStateChanged(async (user) => {
+  const loginBtn = document.getElementById("loginBtn");
+  const logoutBtn = document.getElementById("logoutBtn");
+  const welcomeText = document.getElementById("welcomeText");
+  const welcomeTextMobile = document.getElementById("welcomeTextMobile"); // mobile menu
 
-    if(user){
-      updateCartCount();
-      if(loginBtn) loginBtn.classList.add("hidden");
-      if(logoutBtn) logoutBtn.classList.remove("hidden");
+  if(user){
+    if(loginBtn) loginBtn.classList.add("hidden");
+    if(logoutBtn) logoutBtn.classList.remove("hidden");
+
+    try {
+      const userDoc = await userDb.collection("users").doc(user.uid).get();
+      const fullName = userDoc.exists && userDoc.data().name 
+                       ? userDoc.data().name 
+                       : (user.email ? user.email.split("@")[0] : "User");
+      const firstName = fullName.split(" ")[0];
+      const firstNameCapitalized = firstName.charAt(0).toUpperCase() + firstName.slice(1).toLowerCase();
+
       if(welcomeText){
-        const fullName=user.displayName||(user.email?user.email.split("@")[0]:"User");
-        const firstName=fullName.split(" ")[0];
-        welcomeText.textContent=`Hi, ${firstName.charAt(0).toUpperCase()+firstName.slice(1).toLowerCase()}`;
+        welcomeText.textContent = `Hi, ${firstNameCapitalized}`;
         welcomeText.classList.remove("hidden");
       }
-    } else {
-      if(loginBtn) loginBtn.classList.remove("hidden");
-      if(logoutBtn) logoutBtn.classList.add("hidden");
-      if(welcomeText) welcomeText.classList.add("hidden");
-      if(cartUnsub){
-        try { cartUnsub(); } catch(e){ }
-        cartUnsub = null;
+
+      if(welcomeTextMobile){
+        welcomeTextMobile.textContent = `Hi, ${firstNameCapitalized}`;
+        welcomeTextMobile.classList.remove("hidden");
       }
-      const el = document.getElementById("cartCount");
-      if(el) el.textContent = "0";
+
+    } catch(err) {
+      console.error("Failed to fetch user name:", err);
     }
-  });
+
+     // ✅ Update cart count immediately on page load
+    updateCartCount();
+
+  } else {
+    if(loginBtn) loginBtn.classList.remove("hidden");
+    if(logoutBtn) logoutBtn.classList.add("hidden");
+
+    if(welcomeText) welcomeText.classList.add("hidden");
+    if(welcomeTextMobile) welcomeTextMobile.classList.add("hidden");
+
+  // ✅ Unsubscribe from cart listener to avoid permission errors
+    if(cartUnsub){
+      try { cartUnsub(); } catch(e){ console.error(e); }
+      cartUnsub = null;
+    }
+
+    // ✅ Reset cart count to 0
+    const el = document.getElementById("cartCount");
+    if(el) el.textContent = "0";
+  }
+});
 
   // ---------- Auth UI ----------
 function openLoginModal(){ const m=document.getElementById("loginModal"); if(m) m.classList.remove("hidden"); }
@@ -749,8 +723,11 @@ function showButtonLoader(btn){
 }
 
 document.addEventListener("DOMContentLoaded",()=>{
+
+  // EMAIL/PASSWORD LOGIN
   const lb = document.getElementById("loginBtn");
   if(lb) lb.addEventListener("click",openLoginModal);
+
   const lob = document.getElementById("logoutBtn");
   if(lob) lob.addEventListener("click",()=>userAuth.signOut().then(()=>showNotification("Logged out","success")));
 
@@ -781,22 +758,26 @@ document.addEventListener("DOMContentLoaded",()=>{
       }
     });
   }
-  const googleBtn=document.getElementById("googleLogin");
-  if(googleBtn) googleBtn.addEventListener("click", async()=>{
-    const resetLoader = showButtonLoader(googleBtn);
-    const provider=new firebase.auth.GoogleAuthProvider();
-    try{
-      const result=await userAuth.signInWithPopup(provider);
-      const user=result.user;
-      try{ await userDb.collection("users").doc(user.uid).set({name:user.displayName||"",email:user.email},{merge:true}); }catch(e){console.warn('user write failed',e);}
-      closeLoginModal();
-      showNotification("Logged in with Google","success");
-    } catch(err){ console.error(err); showNotification(err.message||"Google login failed","error"); }
-    finally{
-      resetLoader && resetLoader();
+
+  const togglePwdBtn = document.getElementById("toggleLoginPassword");
+const loginPasswordInput = document.getElementById("loginPassword");
+
+if(togglePwdBtn && loginPasswordInput){
+  togglePwdBtn.addEventListener("click",()=>{
+    if(loginPasswordInput.type === "password"){
+      loginPasswordInput.type = "text";
+      togglePwdBtn.innerHTML = '<i class="fas fa-eye-slash"></i>';
+    } else {
+      loginPasswordInput.type = "password";
+      togglePwdBtn.innerHTML = '<i class="fas fa-eye"></i>';
     }
   });
+}
 
+  // 🔥 GOOGLE LOGIN REMOVED COMPLETELY
+  googleLogin.disabled = true;
+
+  // TIP + SLIDER + PRODUCTS
   rotateTipsFade();
   setInterval(rotateTipsFade,5000);
   setInterval(()=> slideImages(true),3000);
@@ -809,6 +790,7 @@ document.addEventListener("DOMContentLoaded",()=>{
 
 })();
 
+// MOBILE MENU
 const menuToggle = document.getElementById("menuToggle");
 const mobileMenu = document.getElementById("mobileMenu");
 const closeMenu = document.getElementById("closeMenu");
@@ -817,22 +799,17 @@ const menuOverlay = document.getElementById("menuOverlay");
 function openMenu() {
   mobileMenu.classList.remove("-translate-x-full");
   menuOverlay.classList.remove("hidden");
-  document.body.style.overflow = "hidden"; // stop page scroll
+  document.body.style.overflow = "hidden";
 }
 
 function closeMobileMenu() {
   mobileMenu.classList.add("-translate-x-full");
   menuOverlay.classList.add("hidden");
-  document.body.style.overflow = ""; // restore scroll
+  document.body.style.overflow = "";
 }
 
-// OPEN
 menuToggle.addEventListener("click", openMenu);
-
-// CLOSE BUTTON
 closeMenu.addEventListener("click", closeMobileMenu);
-
-// CLOSE when tapping the overlay
 menuOverlay.addEventListener("click", closeMobileMenu);
 </script>
 </body>
