@@ -5,24 +5,20 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Admin Login</title>
   <script src="https://cdn.tailwindcss.com"></script>
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css" crossorigin="anonymous" referrerpolicy="no-referrer" />
 </head>
 <body class="bg-gray-100 flex items-center justify-center h-screen">
 
   <div class="bg-white p-6 rounded shadow-md w-full max-w-md">
-    <h2 class="text-2xl font-bold mb-4 text-center">Admin Login</h2>
+    <h2 class="text-2xl font-bold mb-4 text-center text-pink-600">Admin Login</h2>
     <form id="adminLoginForm" class="space-y-4">
       <input type="email" id="adminEmail" placeholder="Email" class="w-full border p-2 rounded" required />
 
       <div class="relative">
         <input type="password" id="adminPassword" placeholder="Password" class="w-full border p-2 rounded" required />
-        <!-- Eye icon -->
         <i id="toggleAdminPassword" class="fa fa-eye absolute right-3 top-3 text-gray-500 cursor-pointer"></i>
       </div>
 
-      <!-- Login button with spinner -->
-      <button id="loginBtn" type="submit"
-        class="w-full bg-pink-600 text-white py-2 rounded hover:bg-pink-700 flex items-center justify-center gap-2">
+      <button id="loginBtn" type="submit" class="w-full bg-pink-600 text-white py-2 rounded hover:bg-pink-700 flex items-center justify-center gap-2">
         <span id="loginBtnText">Login</span>
         <span id="loginSpinner" class="hidden">
           <i class="fa-solid fa-circle-notch fa-spin"></i>
@@ -37,12 +33,24 @@
     </form>
   </div>
 
+  <!-- Modal -->
+  <div id="modalOverlay" class="fixed inset-0 bg-black bg-opacity-50 hidden flex items-center justify-center z-50">
+    <div class="bg-white rounded shadow-lg max-w-sm w-full p-6">
+      <h3 id="modalTitle" class="text-lg font-bold mb-4">Title</h3>
+      <p id="modalMessage" class="mb-6">Message</p>
+      <div class="flex justify-end space-x-2">
+        <button id="modalCancelBtn" class="bg-gray-300 text-gray-800 px-4 py-2 rounded hover:bg-gray-400 hidden">Cancel</button>
+        <button id="modalOkBtn" class="bg-pink-600 text-white px-4 py-2 rounded hover:bg-pink-700">OK</button>
+      </div>
+    </div>
+  </div>
+
 <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore-compat.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/js/all.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
 
 <script>
-  // --- Admin Firebase config (separate auth project) ---
   const adminFirebaseConfig = {
     apiKey: "AIzaSyAL-VE8puSjlcVwXPj_H-LBz1JXS2Iz4vc",
     authDomain: "e-commerce-admin-auth.firebaseapp.com",
@@ -52,20 +60,9 @@
     appId: "1:816965536848:web:5ea18f3227f1ae63911555"
   };
 
-  // Initialize Firebase app for admin (named)
-  let adminApp;
-  if (!firebase.apps.length) {
-    adminApp = firebase.initializeApp(adminFirebaseConfig);
-  } else {
-    try {
-      adminApp = firebase.app("AdminApp");
-    } catch {
-      adminApp = firebase.initializeApp(adminFirebaseConfig, "AdminApp");
-    }
-  }
-
+  const adminApp = firebase.apps.find(app => app.name === "AdminApp") || firebase.initializeApp(adminFirebaseConfig, "AdminApp");
   const adminAuth = adminApp.auth();
-  const db = firebase.firestore();
+  const db = adminApp.firestore();
 
   const form = document.getElementById("adminLoginForm");
   const loginError = document.getElementById("loginError");
@@ -73,28 +70,42 @@
   const loginBtnText = document.getElementById("loginBtnText");
   const loginSpinner = document.getElementById("loginSpinner");
 
-  // Password Eye Toggle
   const toggleAdminPassword = document.getElementById("toggleAdminPassword");
   const adminPassword = document.getElementById("adminPassword");
-
   toggleAdminPassword.addEventListener("click", () => {
     if (adminPassword.type === "password") {
       adminPassword.type = "text";
-      toggleAdminPassword.classList.remove("fa-eye");
-      toggleAdminPassword.classList.add("fa-eye-slash");
+      toggleAdminPassword.classList.replace("fa-eye", "fa-eye-slash");
     } else {
       adminPassword.type = "password";
-      toggleAdminPassword.classList.remove("fa-eye-slash");
-      toggleAdminPassword.classList.add("fa-eye");
+      toggleAdminPassword.classList.replace("fa-eye-slash", "fa-eye");
     }
   });
 
-  // Admin Login
-  form.addEventListener("submit", async (e) => {
+  // ===== MODAL UTILS =====
+  const modalOverlay = document.getElementById("modalOverlay");
+  const modalTitle = document.getElementById("modalTitle");
+  const modalMessage = document.getElementById("modalMessage");
+  const modalOkBtn = document.getElementById("modalOkBtn");
+  const modalCancelBtn = document.getElementById("modalCancelBtn");
+
+  function showAlert(message, title="Alert") {
+    modalTitle.textContent = title;
+    modalMessage.textContent = message;
+    modalCancelBtn.classList.add("hidden");
+    modalOverlay.classList.remove("hidden");
+    return new Promise(resolve => {
+      modalOkBtn.onclick = () => {
+        modalOverlay.classList.add("hidden");
+        resolve(true);
+      };
+    });
+  }
+
+  form.addEventListener("submit", async e => {
     e.preventDefault();
     loginError.classList.add("hidden");
 
-    // Activate loading state
     loginBtn.disabled = true;
     loginBtn.classList.add("opacity-50", "cursor-not-allowed");
     loginBtnText.textContent = "Logging in...";
@@ -104,16 +115,14 @@
     const password = adminPassword.value;
 
     try {
+      await adminAuth.setPersistence(firebase.auth.Auth.Persistence.LOCAL); // Keep login persistent
       const userCredential = await adminAuth.signInWithEmailAndPassword(email, password);
       const user = userCredential.user;
 
       const adminDoc = await db.collection("admins").doc(user.uid).get();
       if (!adminDoc.exists) {
-        loginError.textContent = "You are not authorized as admin.";
-        loginError.classList.remove("hidden");
+        await showAlert("You are not authorized as admin.", "Access Denied");
         await adminAuth.signOut();
-
-        // Reset button
         loginBtn.disabled = false;
         loginBtn.classList.remove("opacity-50", "cursor-not-allowed");
         loginBtnText.textContent = "Login";
@@ -125,15 +134,11 @@
         lastLogin: firebase.firestore.FieldValue.serverTimestamp()
       });
 
-      localStorage.setItem("isAdminLoggedIn", "true");
-      window.location.href = "Admins.html";
+      window.location.href = "Admins.html"; // Redirect to dashboard
 
-    } catch (err) {
-      console.error(err);
+    } catch(err) {
       loginError.textContent = err.message;
       loginError.classList.remove("hidden");
-
-      // Reset button
       loginBtn.disabled = false;
       loginBtn.classList.remove("opacity-50", "cursor-not-allowed");
       loginBtnText.textContent = "Login";
@@ -141,14 +146,6 @@
     }
   });
 
-  // Admin Logout
-  function logoutAdmin() {
-    adminAuth.signOut().then(() => {
-      // optional: remove localStorage
-      localStorage.removeItem("isAdminLoggedIn");
-      window.location.href = "admin-login.html";
-    });
-  }
 </script>
 </body>
 </html>
