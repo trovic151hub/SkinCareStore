@@ -89,102 +89,115 @@
   <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore-compat.js"></script>
 
-  <script>
-    // Firebase Admin Config
-    const adminFirebaseConfig = {
-      apiKey: "AIzaSyAL-VE8puSjlcVwXPj_H-LBz1JXS2Iz4vc",
-      authDomain: "e-commerce-admin-auth.firebaseapp.com",
-      projectId: "e-commerce-admin-auth",
-      storageBucket: "e-commerce-admin-auth.firebasestorage.app",
-      messagingSenderId: "816965536848",
-      appId: "1:816965536848:web:5ea18f3227f1ae63911555"
-    };
+<script>
+  // ===== FIXED: Firebase Admin Config =====
+  const adminFirebaseConfig = {
+    apiKey: "AIzaSyAL-VE8puSjlcVwXPj_H-LBz1JXS2Iz4vc",
+    authDomain: "e-commerce-admin-auth.firebaseapp.com",
+    projectId: "e-commerce-admin-auth",
+    storageBucket: "e-commerce-admin-auth.firebasestorage.app",
+    messagingSenderId: "816965536848",
+    appId: "1:816965536848:web:5ea18f3227f1ae63911555"
+  };
 
-    const adminApp = firebase.apps.find(app => app.name === "AdminApp") || firebase.initializeApp(adminFirebaseConfig, "AdminApp");
-    const adminAuth = adminApp.auth();
-    const db = adminApp.firestore();
+  // ===== FIXED: Always use AdminApp (same name as login page) =====
+  let adminApp;
+  try {
+    adminApp = firebase.app("AdminApp");
+  } catch (e) {
+    adminApp = firebase.initializeApp(adminFirebaseConfig, "AdminApp");
+  }
 
-    let editId = null;
-    let lastVisibleProduct = null;
-    const PRODUCTS_PER_PAGE = 5;
+  const adminAuth = adminApp.auth();
+  const db = adminApp.firestore();
 
-    // ===== MODAL UTILS =====
-    const modalOverlay = document.getElementById("modalOverlay");
-    const modalTitle = document.getElementById("modalTitle");
-    const modalMessage = document.getElementById("modalMessage");
-    const modalOkBtn = document.getElementById("modalOkBtn");
-    const modalCancelBtn = document.getElementById("modalCancelBtn");
+  let editId = null;
+  let lastVisibleProduct = null;
+  const PRODUCTS_PER_PAGE = 5;
 
-    function showAlert(message, title = "Alert") {
-      modalTitle.textContent = title;
-      modalMessage.textContent = message;
-      modalCancelBtn.classList.add("hidden");
-      modalOverlay.classList.remove("hidden");
-      return new Promise(resolve => {
-        modalOkBtn.onclick = () => {
-          modalOverlay.classList.add("hidden");
-          resolve(true);
-        };
-      });
-    }
+  // ===== MODAL UTILS =====
+  const modalOverlay = document.getElementById("modalOverlay");
+  const modalTitle = document.getElementById("modalTitle");
+  const modalMessage = document.getElementById("modalMessage");
+  const modalOkBtn = document.getElementById("modalOkBtn");
+  const modalCancelBtn = document.getElementById("modalCancelBtn");
 
-    function showConfirm(message, title = "Confirm") {
-      modalTitle.textContent = title;
-      modalMessage.textContent = message;
-      modalCancelBtn.classList.remove("hidden");
-      modalOverlay.classList.remove("hidden");
-      return new Promise(resolve => {
-        modalOkBtn.onclick = () => {
-          modalOverlay.classList.add("hidden");
-          resolve(true);
-        };
-        modalCancelBtn.onclick = () => {
-          modalOverlay.classList.add("hidden");
-          resolve(false);
-        };
-      });
-    }
-
-    // ===== CHECK ADMIN LOGIN =====
-    adminAuth.setPersistence(firebase.auth.Auth.Persistence.LOCAL);
-    adminAuth.onAuthStateChanged(async (user) => {
-      if (!user) return goToLogin();
-      try {
-        const adminDoc = await db.collection("admins").doc(user.uid).get();
-        if (!adminDoc.exists) {
-          await showAlert("Access denied. You are not an admin.", "Access Denied");
-          await adminAuth.signOut();
-          return goToLogin();
-        }
-        const fullName = adminDoc.data().name || "Admin";
-        const firstName = fullName.split(" ")[0];
-        const welcomeEl = document.getElementById("welcomeAdmin");
-        if (welcomeEl) welcomeEl.textContent = `Welcome, ${firstName}`;
-      } catch (err) {
-        console.error(err);
-        goToLogin();
-      }
+  function showAlert(message, title = "Alert") {
+    modalTitle.textContent = title;
+    modalMessage.textContent = message;
+    modalCancelBtn.classList.add("hidden");
+    modalOverlay.classList.remove("hidden");
+    return new Promise(resolve => {
+      modalOkBtn.onclick = () => {
+        modalOverlay.classList.add("hidden");
+        resolve(true);
+      };
     });
+  }
 
-    function goToLogin() {
-      window.location.href = "admin-login.html";
+  function showConfirm(message, title = "Confirm") {
+    modalTitle.textContent = title;
+    modalMessage.textContent = message;
+    modalCancelBtn.classList.remove("hidden");
+    modalOverlay.classList.remove("hidden");
+    return new Promise(resolve => {
+      modalOkBtn.onclick = () => {
+        modalOverlay.classList.add("hidden");
+        resolve(true);
+      };
+      modalCancelBtn.onclick = () => {
+        modalOverlay.classList.add("hidden");
+        resolve(false);
+      };
+    });
+  }
+
+  // ===== FIXED: CHECK ADMIN LOGIN =====
+  adminAuth.setPersistence(firebase.auth.Auth.Persistence.LOCAL);
+
+  adminAuth.onAuthStateChanged(async (user) => {
+    if (!user) return goToLogin();
+
+    try {
+      const adminDoc = await db.collection("admins").doc(user.uid).get();
+      if (!adminDoc.exists) {
+        await showAlert("Access denied. You are not an admin.", "Access Denied");
+        await adminAuth.signOut();
+        return goToLogin();
+      }
+
+      const fullName = adminDoc.data().name || "Admin";
+      const firstName = fullName.split(" ")[0];
+      const welcomeEl = document.getElementById("welcomeAdmin");
+      if (welcomeEl) welcomeEl.textContent = `Welcome, ${firstName}`;
+
+    } catch (err) {
+      console.error(err);
+      goToLogin();
     }
+  });
 
-    // ===== LOAD PRODUCTS =====
-    async function loadProducts(startAfterDoc = null) {
-      let query = db.collection("products").orderBy("name").limit(PRODUCTS_PER_PAGE);
-      if (startAfterDoc) query = query.startAfter(startAfterDoc);
-      const snap = await query.get();
-      const products = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-      lastVisibleProduct = snap.docs[snap.docs.length - 1];
-      return products;
-    }
+  function goToLogin() {
+    window.location.href = "admin-login.html";
+  }
 
-    async function renderTable(append = false) {
-      const tbody = document.getElementById("productTableBody");
-      if (!append) tbody.innerHTML = "";
-      for (let i = 0; i < PRODUCTS_PER_PAGE; i++) {
-        tbody.innerHTML += `<tr class="border-b animate-pulse">
+  // ===== LOAD PRODUCTS =====
+  async function loadProducts(startAfterDoc = null) {
+    let query = db.collection("products").orderBy("name").limit(PRODUCTS_PER_PAGE);
+    if (startAfterDoc) query = query.startAfter(startAfterDoc);
+    const snap = await query.get();
+    const products = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    lastVisibleProduct = snap.docs[snap.docs.length - 1];
+    return products;
+  }
+
+  async function renderTable(append = false) {
+    const tbody = document.getElementById("productTableBody");
+    if (!append) tbody.innerHTML = "";
+
+    for (let i = 0; i < PRODUCTS_PER_PAGE; i++) {
+      tbody.innerHTML += `
+        <tr class="border-b animate-pulse">
           <td class="p-2 bg-gray-200 rounded h-6"></td>
           <td class="p-2 bg-gray-200 rounded h-6"></td>
           <td class="p-2 bg-gray-200 rounded h-6"></td>
@@ -192,13 +205,15 @@
           <td class="p-2 bg-gray-200 rounded h-6"></td>
           <td class="p-2 bg-gray-200 rounded h-6"></td>
         </tr>`;
-      }
+    }
 
-      const products = await loadProducts(append ? lastVisibleProduct : null);
-      if (!append) tbody.innerHTML = "";
+    const products = await loadProducts(append ? lastVisibleProduct : null);
 
-      products.forEach(p => {
-        tbody.innerHTML += `<tr class="border-b">
+    if (!append) tbody.innerHTML = "";
+
+    products.forEach(p => {
+      tbody.innerHTML += `
+        <tr class="border-b">
           <td class="p-2">${p.name}</td>
           <td class="p-2">₦${p.price.toLocaleString()}</td>
           <td class="p-2">${p.category}</td>
@@ -209,84 +224,91 @@
             <button onclick="deleteProduct('${p.id}')" class="text-red-600 text-sm ml-2">Delete</button>
           </td>
         </tr>`;
-      });
-
-      if (!append && products.length === 0) {
-        tbody.innerHTML = `<tr><td class="p-4 text-center text-gray-500" colspan="6">No products found.</td></tr>`;
-      }
-
-      document.getElementById("loadMoreProductsBtn").disabled = products.length < PRODUCTS_PER_PAGE;
-    }
-
-    // ===== SAVE PRODUCT =====
-    const saveBtnText = document.getElementById("saveBtnText");
-    const saveSpinner = document.getElementById("saveSpinner");
-
-    document.getElementById("productForm").addEventListener("submit", async e => {
-      e.preventDefault();
-
-      // Spinner feedback
-      saveBtnText.textContent = "Saving...";
-      saveSpinner.classList.remove("hidden");
-
-      const data = {
-        name: document.getElementById("name").value.trim(),
-        price: parseFloat(document.getElementById("price").value),
-        category: document.getElementById("category").value.trim(),
-        image: document.getElementById("image").value.trim(),
-        description: document.getElementById("description").value.trim()
-      };
-
-      try {
-        if (editId) {
-          await db.collection("products").doc(editId).update(data);
-          editId = null;
-          document.getElementById("formTitle").textContent = "Add New Product";
-        } else {
-          await db.collection("products").add(data);
-        }
-        document.getElementById("productForm").reset();
-        await showAlert("Product saved successfully!", "Success");
-        renderTable();
-      } catch (err) {
-        await showAlert("Failed to save: " + err.message, "Error");
-      } finally {
-        saveBtnText.textContent = "Save Product";
-        saveSpinner.classList.add("hidden");
-      }
     });
 
-    // ===== EDIT / DELETE =====
-    window.editProduct = async id => {
-      const doc = await db.collection("products").doc(id).get();
-      const p = doc.data();
-      document.getElementById("name").value = p.name;
-      document.getElementById("price").value = p.price;
-      document.getElementById("category").value = p.category;
-      document.getElementById("image").value = p.image;
-      document.getElementById("description").value = p.description;
-      document.getElementById("formTitle").textContent = "Edit Product";
-      editId = id;
+    if (!append && products.length === 0) {
+      tbody.innerHTML = `<tr><td class="p-4 text-center text-gray-500" colspan="6">No products found.</td></tr>`;
+    }
+
+    document.getElementById("loadMoreProductsBtn").disabled =
+      products.length < PRODUCTS_PER_PAGE;
+  }
+
+  // ===== SAVE PRODUCT =====
+  const saveBtnText = document.getElementById("saveBtnText");
+  const saveSpinner = document.getElementById("saveSpinner");
+
+  document.getElementById("productForm").addEventListener("submit", async e => {
+    e.preventDefault();
+
+    saveBtnText.textContent = "Saving...";
+    saveSpinner.classList.remove("hidden");
+
+    const data = {
+      name: document.getElementById("name").value.trim(),
+      price: parseFloat(document.getElementById("price").value),
+      category: document.getElementById("category").value.trim(),
+      image: document.getElementById("image").value.trim(),
+      description: document.getElementById("description").value.trim()
     };
 
-    window.deleteProduct = async id => {
-      const confirmed = await showConfirm("Delete this product?");
-      if (!confirmed) return;
-      await db.collection("products").doc(id).delete();
+    try {
+      if (editId) {
+        await db.collection("products").doc(editId).update(data);
+        editId = null;
+        document.getElementById("formTitle").textContent = "Add New Product";
+      } else {
+        await db.collection("products").add(data);
+      }
+
+      document.getElementById("productForm").reset();
+      await showAlert("Product saved successfully!", "Success");
       renderTable();
-    };
 
-    // ===== LOGOUT =====
-    window.logoutAdmin = async () => {
-      await adminAuth.signOut();
-      goToLogin();
-    };
+    } catch (err) {
+      await showAlert("Failed to save: " + err.message, "Error");
 
-    // ===== LOAD MORE =====
-    document.getElementById("loadMoreProductsBtn").addEventListener("click", () => renderTable(true));
+    } finally {
+      saveBtnText.textContent = "Save Product";
+      saveSpinner.classList.add("hidden");
+    }
+  });
 
-    // ===== INITIAL LOAD =====
+  // ===== EDIT / DELETE PRODUCT =====
+  window.editProduct = async id => {
+    const doc = await db.collection("products").doc(id).get();
+    const p = doc.data();
+
+    document.getElementById("name").value = p.name;
+    document.getElementById("price").value = p.price;
+    document.getElementById("category").value = p.category;
+    document.getElementById("image").value = p.image;
+    document.getElementById("description").value = p.description;
+
+    document.getElementById("formTitle").textContent = "Edit Product";
+    editId = id;
+  };
+
+  window.deleteProduct = async id => {
+    const confirmed = await showConfirm("Delete this product?");
+    if (!confirmed) return;
+
+    await db.collection("products").doc(id).delete();
     renderTable();
-  </script>
+  };
+
+  // ===== LOGOUT =====
+  window.logoutAdmin = async () => {
+    await adminAuth.signOut();
+    goToLogin();
+  };
+
+  // ===== LOAD MORE =====
+  document.getElementById("loadMoreProductsBtn")
+    .addEventListener("click", () => renderTable(true));
+
+  // ===== INITIAL LOAD =====
+  renderTable();
+</script>
 </body>
 </html>
