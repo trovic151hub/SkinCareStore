@@ -323,7 +323,7 @@
         <div class="flex flex-col md:flex-row gap-2">
           <button class="bg-blue-600 text-white px-3 py-1 rounded" onclick='openDetail("${order.id}")'>Detail</button>
           <button class="bg-pink-500 text-white px-3 py-1 rounded" onclick='toggleFulfilled("${order.id}", ${!!order.fulfilled})'>${order.fulfilled ? 'Mark Pending' : 'Mark Complete'}</button>
-          <button class="bg-red-500 text-white px-3 py-1 rounded" onclick='deleteOrder("${order.id}")'>Delete</button>
+          <button class="bg-red-500 text-white px-3 py-1 rounded opacity-50 cursor-not-allowed" onclick='deleteOrder("${order.id}")' disabled>Delete</button>
         </div>
       </td>
     `;
@@ -434,9 +434,7 @@
     downloadPdfBtn.onclick = () => downloadPdf(order);
     emailReceiptBtn.onclick = () => triggerEmailReceipt(order);
 
-    // ======================
-    // ADMIN CONTROLS (OPTION A)
-    // ======================
+    // ADMIN CONTROLS
     modalStatusControls.innerHTML = '';
 
     if (isAdmin) {
@@ -453,9 +451,10 @@
       modalStatusControls.appendChild(sel);
 
       const delBtn = document.createElement('button');
-      delBtn.className = 'ml-2 bg-red-600 text-white px-3 py-2 rounded';
+      delBtn.className = 'ml-2 bg-red-600 text-white px-3 py-2 rounded opacity-50 cursor-not-allowed';
       delBtn.innerText = 'Delete Order';
-      delBtn.onclick = () => deleteOrder(order.id);
+      // delBtn.onclick = () => deleteOrder(order.id);
+      delBtn.disabled = true;
 
       modalStatusControls.appendChild(delBtn);
     }
@@ -483,51 +482,165 @@
     }
   }
 
-  // ========== PDF ==========
-  function downloadPdf(order) {
-    try {
-      const { jsPDF } = window.jspdf;
-      const doc = new jsPDF();
-      const pageWidth = 210;
-      const margin = 20;
-      const lineHeight = 10;
-      let y = 20;
+  // ========== PROFESSIONAL PDF WITH LOGO + POLISHED TABLE + FOOTER LINE ==========
+async function downloadPdf(order) {
+  try {
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF("p", "mm", "a4");
 
-      doc.setFontSize(16);
-      doc.text("Order Receipt", pageWidth / 2, y, { align: "center" });
-      y += 15;
+    const dark = "#222222";
+    const gray = "#555555";
+    const gold = "#d4a017";
+    const rowLight = "#f7f7f7"; // alternating row color
 
-      doc.setFontSize(12);
-      doc.text(`Name: ${order.name || ''}`, margin, y); y+=lineHeight;
-      doc.text(`Email: ${order.email || ''}`, margin, y); y+=lineHeight;
-      doc.text(`Phone: ${order.phone || ''}`, margin, y); y+=lineHeight;
-      doc.text(`Payment Ref: ${order.paymentRef || ''}`, margin, y); y+=lineHeight+5;
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const margin = 15;
+    let y = 20;
 
-      doc.text("Item", margin, y); doc.text("Qty", 100, y); doc.text("Price", 130, y); doc.text("Total", 170, y); y+=5;
-      doc.setLineWidth(0.5); doc.line(margin, y, pageWidth-margin, y); y+=5;
+    // ====== FETCH LOGO FROM CLOUDINARY AND CONVERT TO BASE64 ======
+    const logoURL = "https://res.cloudinary.com/dut2dpxuc/image/upload/v1764188839/e1232d47-ee66-47c9-97fa-b9b86232fb80_n35lqo.png";
+    const response = await fetch(logoURL);
+    const blob = await response.blob();
+    const base64Logo = await new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onloadend = () => resolve(reader.result);
+      reader.onerror = reject;
+      reader.readAsDataURL(blob);
+    });
 
-      const items = order.items || [];
-      items.forEach(i=>{
-        if(y>280){ doc.addPage(); y=20; doc.text("Item", margin, y); doc.text("Qty", 100, y); doc.text("Price", 130, y); doc.text("Total", 170, y); y+=5; doc.line(margin, y, pageWidth-margin, y); y+=5;}
-        doc.text(i.name||'', margin, y);
-        doc.text(`${i.quantity}`, 100, y);
-        doc.text(`₦${Number(i.price).toLocaleString()}`, 130, y);
-        doc.text(`₦${(i.quantity*i.price).toLocaleString()}`, 170, y);
-        y+=lineHeight;
-      });
+    // ===== ADD LOGO =====
+    const logoWidth = 50;
+    const logoHeight = 25;
+    const logoX = (pageWidth - logoWidth) / 2;
+    doc.addImage(base64Logo, "PNG", logoX, 10, logoWidth, logoHeight);
+    y = 45;
 
-      y+=5;
-      if(y>280){ doc.addPage(); y=20; }
-      doc.setFontSize(14); doc.text(`Total: ₦${Number(order.total||0).toLocaleString()}`, margin, y); y+=lineHeight;
-      doc.setFontSize(12); doc.text(`Address: ${order.address || '—'}`, margin, y);
+    // ===== ORDER RECEIPT TITLE (LEFT-ALIGNED) =====
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(18);
+    doc.setTextColor(dark);
+    doc.text("ORDER RECEIPT", margin, y);
+    y += 15;
 
-      doc.save(`Order_${order.paymentRef || order.id}.pdf`);
-      showAlert('PDF generated successfully!', 'Success');
+    // ===== HORIZONTAL LINE =====
+    doc.setDrawColor("#e0e0e0");
+    doc.setLineWidth(0.5);
+    doc.line(margin, y, pageWidth - margin, y);
+    y += 5;
 
-    } catch(err){
-      showAlert('Failed to generate PDF: '+(err.message||err), 'Error');
-    }
+    // ===== CUSTOMER INFO CARD =====
+    doc.setFillColor("#f9f9f9");
+    doc.roundedRect(margin, y, pageWidth - margin * 2, 40, 3, 3, "F");
+    doc.setFontSize(12);
+    doc.setTextColor(dark);
+
+    y += 10;
+    doc.text(`Name: ${order.name || ""}`, margin + 5, y);
+    y += 7;
+    doc.text(`Email: ${order.email || ""}`, margin + 5, y);
+    y += 7;
+    doc.text(`Phone: ${order.phone || ""}`, margin + 5, y);
+    y += 7;
+    doc.text(`Payment Ref: ${order.paymentRef || ""}`, margin + 5, y);
+
+    y += 15;
+
+    // ===== HORIZONTAL LINE =====
+    doc.setDrawColor("#e0e0e0");
+    doc.setLineWidth(0.5);
+    doc.line(margin, y, pageWidth - margin, y);
+    y += 5;
+
+    // ===== TABLE HEADER =====
+    doc.setFillColor(gold);
+    doc.setTextColor("#ffffff");
+    doc.setFontSize(11);
+    const tableX = margin;
+    const tableWidth = pageWidth - margin * 2;
+    const rowHeight = 8;
+
+    // Draw header background
+    doc.rect(tableX, y, tableWidth, rowHeight, "F");
+
+    // Header text
+    doc.text("Item", tableX + 2, y + 6);
+    doc.text("Qty", tableX + 80, y + 6);
+    doc.text("Price", tableX + 110, y + 6, { align: "right" });
+    doc.text("Total", tableX + 150, y + 6, { align: "right" });
+
+    y += rowHeight;
+
+    // ===== ITEM ROWS =====
+    const items = order.items || [];
+    doc.setTextColor("#000000");
+
+    items.forEach((i, index) => {
+      if (y > 260) {
+        doc.addPage();
+        y = 20;
+      }
+
+      // alternating row color
+      if (index % 2 === 0) {
+        doc.setFillColor(rowLight);
+        doc.rect(tableX, y, tableWidth, rowHeight, "F");
+      }
+
+      // item details
+      doc.text(i.name || "", tableX + 2, y + 6);
+      doc.text(`${i.quantity}`, tableX + 80, y + 6);
+      doc.text(`₦${Number(i.price).toLocaleString()}`, tableX + 110, y + 6, { align: "right" });
+      doc.text(`₦${(i.price * i.quantity).toLocaleString()}`, tableX + 150, y + 6, { align: "right" });
+
+      // row border
+      doc.setDrawColor("#e0e0e0");
+      doc.rect(tableX, y, tableWidth, rowHeight);
+
+      y += rowHeight;
+    });
+
+    // ===== ORDER TOTAL ROW (INSIDE TABLE) =====
+    doc.setFillColor("#eaeaea");
+    doc.rect(tableX, y, tableWidth, rowHeight, "F");
+
+    doc.setFont("helvetica", "bold");
+    doc.text("Order Total", tableX + 110, y + 6, { align: "right" });
+    doc.text(`₦${Number(order.total || 0).toLocaleString()}`, tableX + 150, y + 6, { align: "right" });
+
+    // bottom border
+    doc.setDrawColor("#e0e0e0");
+    doc.rect(tableX, y, tableWidth, rowHeight);
+
+    y += rowHeight + 5;
+
+    // ===== ADDRESS =====
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(11);
+    doc.setTextColor(gray);
+    doc.text("Delivery Address:", margin, y);
+    y += 6;
+    const addressLines = doc.splitTextToSize(order.address || "—", pageWidth - margin * 2);
+    doc.text(addressLines, margin, y);
+
+    // ===== FOOTER =====
+    y = 285;
+    doc.setFontSize(10);
+    doc.setTextColor(gray);
+    doc.text(
+      "Thank you for shopping with Pearl Skin Care!",
+      pageWidth / 2,
+      y,
+      { align: "center" }
+    );
+
+    // ===== SAVE PDF =====
+    doc.save(`Order_${order.paymentRef || order.id}.pdf`);
+    showAlert("PDF generated successfully!", "Success");
+
+  } catch (err) {
+    showAlert("Failed to generate PDF: " + (err.message || err), "Error");
   }
+}
 
   // ========== EVENT LISTENERS ==========
   document.getElementById('applyFilters').addEventListener('click', ()=>{ 
@@ -551,6 +664,9 @@
   document.getElementById('refreshBtn').addEventListener('click', ()=>clearAndLoad());
   loadMoreBtn.addEventListener('click', ()=>{ if(!loadingMore) loadMore(); });
 
+  emailReceiptBtn.disabled = true;
+  emailReceiptBtn.classList.add('bg-gray-400', 'cursor-not-allowed');
+
   // ========== INIT ==========
   clearAndLoad();
 
@@ -558,4 +674,3 @@
 </script>
 </body>
 </html>
-
