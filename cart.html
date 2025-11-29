@@ -205,6 +205,7 @@
     }
   });
 
+  // Cart Listener
   function startCartListener() {
     stopCartListener();
     if (!currentUser) return;
@@ -297,11 +298,13 @@
       removeBtn.onclick= () => removeWithSpinner(it.docId, `removeSpinner-${it.docId}`);
     });
 
+    // Update Subtotal
     totalSpan.textContent = total.toLocaleString();
     checkoutBtn.disabled = false;
     checkoutBtn.classList.remove("opacity-50", "cursor-not-allowed");
   }
 
+  // Update Quantity
   function updateQtyWithSpinner(docId, delta, spinnerId) {
     const spinner = document.getElementById(spinnerId);
     spinner.classList.remove("hidden");
@@ -319,6 +322,7 @@
     }).finally(() => spinner.classList.add("hidden"));
   }
 
+  // Remove Item
   function removeWithSpinner(docId, spinnerId) {
     const spinner = document.getElementById(spinnerId);
     spinner.classList.remove("hidden");
@@ -333,6 +337,7 @@
       .finally(() => spinner.classList.add("hidden"));
   }
 
+  // Show Notification
   function showNotification(msg, type = "info", dur = 3000) {
     const container = document.body;
     const div = document.createElement("div");
