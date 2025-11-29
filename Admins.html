@@ -46,6 +46,7 @@
       <form id="productForm" class="grid grid-cols-1 md:grid-cols-2 gap-4">
         <input type="text" id="name" placeholder="Product Name" class="border p-2 rounded" required />
         <input type="number" id="price" placeholder="Price (₦)" class="border p-2 rounded" required />
+        <input type="number" id="weight" placeholder="Weight (kg)" step="0.01" class="border p-2 rounded" required />
         <input type="text" id="category" placeholder="Category" class="border p-2 rounded" required />
         <input type="text" id="image" placeholder="Image URL" class="border p-2 rounded" required />
         <textarea id="description" placeholder="Product Description"
@@ -68,6 +69,7 @@
               <th class="p-2">Name</th>
               <th class="p-2">Price</th>
               <th class="p-2">Category</th>
+              <th class="p-2">Weight (kg)</th>
               <th class="p-2">Image</th>
               <th class="p-2">Description</th>
               <th class="p-2">Actions</th>
@@ -217,6 +219,7 @@
           <td class="p-2">${p.name}</td>
           <td class="p-2">₦${p.price.toLocaleString()}</td>
           <td class="p-2">${p.category}</td>
+          <td class="p-2">${p.weight || 0} kg</td>
           <td class="p-2"><img src="${p.image}" class="w-12 h-12 object-cover rounded"/></td>
           <td class="p-2 text-sm max-w-xs truncate">${p.description}</td>
           <td class="p-2">
@@ -245,12 +248,13 @@
     saveSpinner.classList.remove("hidden");
 
     const data = {
-      name: document.getElementById("name").value.trim(),
-      price: parseFloat(document.getElementById("price").value),
-      category: document.getElementById("category").value.trim(),
-      image: document.getElementById("image").value.trim(),
-      description: document.getElementById("description").value.trim()
-    };
+  name: document.getElementById("name").value.trim(),
+  price: parseFloat(document.getElementById("price").value),
+  category: document.getElementById("category").value.trim(),
+  weight: parseFloat(document.getElementById("weight").value), // NEW
+  image: document.getElementById("image").value.trim(),
+  description: document.getElementById("description").value.trim()
+};
 
     try {
       if (editId) {
@@ -284,6 +288,7 @@
     document.getElementById("category").value = p.category;
     document.getElementById("image").value = p.image;
     document.getElementById("description").value = p.description;
+    document.getElementById("weight").value = p.weight || 0;
 
     document.getElementById("formTitle").textContent = "Edit Product";
     editId = id;
@@ -311,4 +316,4 @@
   renderTable();
 </script>
 </body>
-</html>
+</html>  
